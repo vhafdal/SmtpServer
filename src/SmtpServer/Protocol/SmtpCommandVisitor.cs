@@ -61,6 +61,12 @@ namespace SmtpServer.Protocol
                 return;
             }
 
+            if (command is BdatCommand bdatCommand)
+            {
+                Visit(bdatCommand);
+                return;
+            }
+
             if (command is NoopCommand noopCommand)
             {
                 Visit(noopCommand);
@@ -147,6 +153,12 @@ namespace SmtpServer.Protocol
         /// </summary>
         /// <param name="command">The command that is being visited.</param>
         protected virtual void Visit(ExpnCommand command) { }
+
+        /// <summary>
+        /// Visit a BDAT command.
+        /// </summary>
+        /// <param name="command">The command that is being visited.</param>
+        protected virtual void Visit(BdatCommand command) { }
 
         /// <summary>
         /// Visit an NOOP command.

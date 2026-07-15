@@ -68,6 +68,13 @@ namespace SmtpServer.StateMachine
                 { QuitCommand.Command },
                 { RcptCommand.Command },
                 { DataCommand.Command, SmtpStateId.WaitingForMail },
+                { BdatCommand.Command, BdatNextState },
+            },
+            new SmtpState(SmtpStateId.BdatInProgress)
+            {
+                { RsetCommand.Command, WaitingForMailSecureWhenSecure },
+                { QuitCommand.Command },
+                { BdatCommand.Command, BdatNextState },
             }
         };
 
@@ -79,6 +86,16 @@ namespace SmtpServer.StateMachine
         static bool CanAcceptStartTls(SmtpSessionContext context)
         {
             return context.EndpointDefinition.CertificateFactory != null && context.Pipe.IsSecure == false;
+        }
+
+        static SmtpStateId BdatNextState(SmtpSessionContext context)
+        {
+            if (context.Properties.TryGetValue(BdatCommand.LastChunkKey, out var value) && value is bool isLast && isLast)
+            {
+                return WaitingForMailSecureWhenSecure(context);
+            }
+
+            return SmtpStateId.BdatInProgress;
         }
 
         readonly IDictionary<SmtpStateId, SmtpState> _states = new Dictionary<SmtpStateId, SmtpState>();

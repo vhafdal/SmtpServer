@@ -63,6 +63,7 @@ namespace SmtpServer.Tests
         [InlineData("HELP", typeof(HelpCommand))]
         [InlineData("VRFY cain.osullivan@gmail.com", typeof(VrfyCommand))]
         [InlineData("EXPN staff", typeof(ExpnCommand))]
+        [InlineData("BDAT 5 LAST", typeof(BdatCommand))]
         [InlineData("DATA", typeof(DataCommand))]
         [InlineData("QUIT", typeof(QuitCommand))]
         [InlineData("RSET", typeof(RsetCommand))]
@@ -186,6 +187,45 @@ namespace SmtpServer.Tests
 
             // act
             var result = Parser.TryMakeExpn(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.False(result);
+            Assert.Null(command);
+            Assert.Equal(SmtpReplyCode.SyntaxError, errorResponse.ReplyCode);
+        }
+
+        [Theory]
+        [InlineData("BDAT 5", 5, false)]
+        [InlineData("BDAT 0 LAST", 0, true)]
+        [InlineData("BDAT 1024 last", 1024, true)]
+        public void CanMakeBdat(string input, long size, bool isLast)
+        {
+            // arrange
+            var reader = CreateReader(input);
+
+            // act
+            var result = Parser.TryMakeBdat(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is BdatCommand);
+            Assert.Equal(size, ((BdatCommand)command).Size);
+            Assert.Equal(isLast, ((BdatCommand)command).IsLast);
+            Assert.Null(errorResponse);
+        }
+
+        [Theory]
+        [InlineData("BDAT")]
+        [InlineData("BDAT LAST")]
+        [InlineData("BDAT 5 DONE")]
+        [InlineData("BDAT 5 LAST extra")]
+        public void CanNotMakeBdat(string input)
+        {
+            // arrange
+            var reader = CreateReader(input);
+
+            // act
+            var result = Parser.TryMakeBdat(ref reader, out var command, out var errorResponse);
 
             // assert
             Assert.False(result);
