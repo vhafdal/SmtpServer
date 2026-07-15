@@ -4,6 +4,7 @@
 
 - Added: Configuration option to define the maximum allowed message size.
 - Added: Support for custom SMTP greeting messages.
+- Fixed: NetworkBufferSize now controls the stream read buffer used by the SMTP connection pipe.
 - Improved: Optimized protection against excessively long text segments to enhance stability and performance.
 
 ```cs

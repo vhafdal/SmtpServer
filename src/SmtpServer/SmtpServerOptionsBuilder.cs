@@ -141,6 +141,11 @@ namespace SmtpServer
         /// <returns>An OptionsBuilder to continue building on.</returns>
         public SmtpServerOptionsBuilder NetworkBufferSize(int value)
         {
+            if (value <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "The network buffer size must be greater than zero.");
+            }
+
             _setters.Add(options => options.NetworkBufferSize = value);
 
             return this;
