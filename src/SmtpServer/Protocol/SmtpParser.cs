@@ -856,7 +856,7 @@ namespace SmtpServer.Protocol
             }
 
             var token = reader.Take();
-            if (token.Kind != TokenKind.Number && token.Text[0] != '4')
+            if (token.Kind != TokenKind.Number || token.Text.Length != 1 || token.Text[0] != '4')
             {
                 return false;
             }
@@ -880,7 +880,7 @@ namespace SmtpServer.Protocol
             }
 
             var token = reader.Take();
-            if (token.Kind != TokenKind.Number && token.Text[0] != '6')
+            if (token.Kind != TokenKind.Number || token.Text.Length != 1 || token.Text[0] != '6')
             {
                 return false;
             }
