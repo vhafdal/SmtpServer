@@ -6,6 +6,7 @@
 - Added: Support for custom SMTP greeting messages.
 - Added: DSN envelope parameter support for MAIL and RCPT commands.
 - Added: Enhanced status code support for common SMTP responses.
+- Added: HELP, VRFY, and EXPN command handling with conservative default VRFY/EXPN responses and an opt-in `ISmtpCommandPolicy` extension point.
 - Fixed: NetworkBufferSize now controls the stream read buffer used by the SMTP connection pipe.
 - Improved: Reduced allocations in EHLO response generation and AUTH credential parsing.
 - Improved: Optimized protection against excessively long text segments to enhance stability and performance.

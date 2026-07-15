@@ -67,6 +67,21 @@ namespace SmtpServer.Protocol
                 return Make(ref reader, TryMakeRcpt, out command, out errorResponse);
             }
 
+            if (IsVerb(verb.Text, "HELP"))
+            {
+                return Make(ref reader, TryMakeHelp, out command, out errorResponse);
+            }
+
+            if (IsVerb(verb.Text, "VRFY"))
+            {
+                return Make(ref reader, TryMakeVrfy, out command, out errorResponse);
+            }
+
+            if (IsVerb(verb.Text, "EXPN"))
+            {
+                return Make(ref reader, TryMakeExpn, out command, out errorResponse);
+            }
+
             if (IsVerb(verb.Text, "DATA"))
             {
                 return Make(ref reader, TryMakeData, out command, out errorResponse);
@@ -147,6 +162,39 @@ namespace SmtpServer.Protocol
             errorResponse = UnrecognizedCommand;
 
             return false;
+        }
+
+        static bool TryMakeCommandArgument(ref TokenReader reader, bool required, out string argument)
+        {
+            reader.Skip(TokenKind.Space);
+
+            if (reader.Peek().Kind == TokenKind.None)
+            {
+                argument = string.Empty;
+                return required == false;
+            }
+
+            if (reader.TryMake(TryMakeRemainingLine, out var buffer) == false)
+            {
+                argument = string.Empty;
+                return false;
+            }
+
+            argument = StringUtil.Create(buffer, Encoding.UTF8)?.Trim() ?? string.Empty;
+            return required == false || argument.Length > 0;
+        }
+
+        static bool TryMakeRemainingLine(ref TokenReader reader)
+        {
+            var hasTokens = false;
+
+            while (reader.Peek().Kind != TokenKind.None)
+            {
+                reader.Take();
+                hasTokens = true;
+            }
+
+            return hasTokens;
         }
 
         /// <summary>
@@ -474,6 +522,150 @@ namespace SmtpServer.Protocol
                 Span<char> command = stackalloc char[2];
                 command[0] = 'T';
                 command[1] = 'O';
+
+                return text.CaseInsensitiveStringEquals(ref command);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Make a HELP command.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <param name="command">The command that is defined within the token reader.</param>
+        /// <param name="errorResponse">The error that indicates why the command could not be made.</param>
+        /// <returns>Returns true if a command could be made, false if not.</returns>
+        public bool TryMakeHelp(ref TokenReader reader, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            command = null;
+            errorResponse = null;
+
+            if (reader.TryMake(TryMakeHelpLiteral) == false)
+            {
+                return false;
+            }
+
+            if (TryMakeCommandArgument(ref reader, false, out var argument) == false)
+            {
+                errorResponse = SmtpResponse.SyntaxError;
+                return false;
+            }
+
+            command = _smtpCommandFactory.CreateHelp(argument);
+            return true;
+        }
+
+        /// <summary>
+        /// Try to make the HELP text sequence.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <returns>true if the HELP text sequence could be made, false if not.</returns>
+        public bool TryMakeHelpLiteral(ref TokenReader reader)
+        {
+            if (reader.TryMake(TryMakeText, out var text))
+            {
+                Span<char> command = stackalloc char[4];
+                command[0] = 'H';
+                command[1] = 'E';
+                command[2] = 'L';
+                command[3] = 'P';
+
+                return text.CaseInsensitiveStringEquals(ref command);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Make a VRFY command.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <param name="command">The command that is defined within the token reader.</param>
+        /// <param name="errorResponse">The error that indicates why the command could not be made.</param>
+        /// <returns>Returns true if a command could be made, false if not.</returns>
+        public bool TryMakeVrfy(ref TokenReader reader, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            command = null;
+            errorResponse = null;
+
+            if (reader.TryMake(TryMakeVrfyLiteral) == false)
+            {
+                return false;
+            }
+
+            if (TryMakeCommandArgument(ref reader, true, out var argument) == false)
+            {
+                errorResponse = SmtpResponse.SyntaxError;
+                return false;
+            }
+
+            command = _smtpCommandFactory.CreateVrfy(argument);
+            return true;
+        }
+
+        /// <summary>
+        /// Try to make the VRFY text sequence.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <returns>true if the VRFY text sequence could be made, false if not.</returns>
+        public bool TryMakeVrfyLiteral(ref TokenReader reader)
+        {
+            if (reader.TryMake(TryMakeText, out var text))
+            {
+                Span<char> command = stackalloc char[4];
+                command[0] = 'V';
+                command[1] = 'R';
+                command[2] = 'F';
+                command[3] = 'Y';
+
+                return text.CaseInsensitiveStringEquals(ref command);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Make an EXPN command.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <param name="command">The command that is defined within the token reader.</param>
+        /// <param name="errorResponse">The error that indicates why the command could not be made.</param>
+        /// <returns>Returns true if a command could be made, false if not.</returns>
+        public bool TryMakeExpn(ref TokenReader reader, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            command = null;
+            errorResponse = null;
+
+            if (reader.TryMake(TryMakeExpnLiteral) == false)
+            {
+                return false;
+            }
+
+            if (TryMakeCommandArgument(ref reader, true, out var argument) == false)
+            {
+                errorResponse = SmtpResponse.SyntaxError;
+                return false;
+            }
+
+            command = _smtpCommandFactory.CreateExpn(argument);
+            return true;
+        }
+
+        /// <summary>
+        /// Try to make the EXPN text sequence.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <returns>true if the EXPN text sequence could be made, false if not.</returns>
+        public bool TryMakeExpnLiteral(ref TokenReader reader)
+        {
+            if (reader.TryMake(TryMakeText, out var text))
+            {
+                Span<char> command = stackalloc char[4];
+                command[0] = 'E';
+                command[1] = 'X';
+                command[2] = 'P';
+                command[3] = 'N';
 
                 return text.CaseInsensitiveStringEquals(ref command);
             }

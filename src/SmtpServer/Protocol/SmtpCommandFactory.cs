@@ -40,6 +40,24 @@ namespace SmtpServer.Protocol
         }
 
         /// <inheritdoc />
+        public virtual SmtpCommand CreateHelp(string argument)
+        {
+            return new HelpCommand(argument);
+        }
+
+        /// <inheritdoc />
+        public virtual SmtpCommand CreateVrfy(string argument)
+        {
+            return new VrfyCommand(argument);
+        }
+
+        /// <inheritdoc />
+        public virtual SmtpCommand CreateExpn(string argument)
+        {
+            return new ExpnCommand(argument);
+        }
+
+        /// <inheritdoc />
         public virtual SmtpCommand CreateData()
         {
             return new DataCommand();

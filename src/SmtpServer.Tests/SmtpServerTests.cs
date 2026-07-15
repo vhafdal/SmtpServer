@@ -230,6 +230,63 @@ namespace SmtpServer.Tests
         }
 
         [Fact]
+        public async Task CanReturnHelpResponse()
+        {
+            using (CreateServer())
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("HELP");
+
+                Assert.StartsWith("214 2.0.0 Commands:", response);
+                Assert.Contains("HELP", response);
+                Assert.Contains("VRFY", response);
+                Assert.Contains("EXPN", response);
+            }
+        }
+
+        [Fact]
+        public async Task VrfyAndExpnDoNotEnumerateByDefault()
+        {
+            using (CreateServer())
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("VRFY user@example.com");
+                Assert.Equal("252 2.5.2 cannot VRFY user, but will accept message and attempt delivery\r\n", response);
+
+                response = await rawSmtpClient.SendCommandAsync("EXPN staff");
+                Assert.Equal("252 2.5.2 cannot EXPN mailing list\r\n", response);
+
+                response = await rawSmtpClient.SendCommandAsync("NOOP");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+            }
+        }
+
+        [Fact]
+        public async Task CanUseCustomSmtpCommandPolicy()
+        {
+            var policy = new TestSmtpCommandPolicy();
+
+            using (CreateServer(services => services.Add(policy)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("HELP VRFY");
+                Assert.Equal("214 2.0.0 Custom help for VRFY\r\n", response);
+
+                response = await rawSmtpClient.SendCommandAsync("VRFY user@example.com");
+                Assert.Equal("250 2.0.0 user@example.com\r\n", response);
+
+                response = await rawSmtpClient.SendCommandAsync("EXPN staff");
+                Assert.Equal("250 2.0.0 member@example.com\r\n", response);
+            }
+        }
+
+        [Fact]
         public async Task CanReceiveDsnEnvelopeParameters()
         {
             IReadOnlyDictionary<string, string> filterParameters = null;
@@ -858,6 +915,24 @@ namespace SmtpServer.Tests
                 CancellationToken cancellationToken)
             {
                 return _canDeliverDelegate(context, to, @from, parameters, cancellationToken);
+            }
+        }
+
+        sealed class TestSmtpCommandPolicy : SmtpCommandPolicy
+        {
+            public override Task<SmtpResponse> GetHelpAsync(ISessionContext context, string argument, CancellationToken cancellationToken)
+            {
+                return Task.FromResult(new SmtpResponse(SmtpReplyCode.HelpResponse, $"Custom help for {argument}"));
+            }
+
+            public override Task<SmtpResponse> VerifyAsync(ISessionContext context, string argument, CancellationToken cancellationToken)
+            {
+                return Task.FromResult(new SmtpResponse(SmtpReplyCode.Ok, argument));
+            }
+
+            public override Task<SmtpResponse> ExpandAsync(ISessionContext context, string argument, CancellationToken cancellationToken)
+            {
+                return Task.FromResult(new SmtpResponse(SmtpReplyCode.Ok, "member@example.com"));
             }
         }
     }

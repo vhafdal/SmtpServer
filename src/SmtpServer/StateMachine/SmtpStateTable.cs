@@ -12,6 +12,9 @@ namespace SmtpServer.StateMachine
             new SmtpState(SmtpStateId.Initialized)
             {
                 { NoopCommand.Command },
+                { HelpCommand.Command },
+                { VrfyCommand.Command },
+                { ExpnCommand.Command },
                 { RsetCommand.Command },
                 { QuitCommand.Command },
                 { ProxyCommand.Command },
@@ -21,6 +24,9 @@ namespace SmtpServer.StateMachine
             new SmtpState(SmtpStateId.WaitingForMail)
             {
                 { NoopCommand.Command },
+                { HelpCommand.Command },
+                { VrfyCommand.Command },
+                { ExpnCommand.Command },
                 { RsetCommand.Command },
                 { QuitCommand.Command },
                 { StartTlsCommand.Command, CanAcceptStartTls, SmtpStateId.WaitingForMailSecure },
@@ -32,6 +38,9 @@ namespace SmtpServer.StateMachine
             new SmtpState(SmtpStateId.WaitingForMailSecure)
             {
                 { NoopCommand.Command },
+                { HelpCommand.Command },
+                { VrfyCommand.Command },
+                { ExpnCommand.Command },
                 { RsetCommand.Command },
                 { QuitCommand.Command },
                 { AuthCommand.Command, context => context.Authentication.IsAuthenticated == false },
@@ -42,6 +51,9 @@ namespace SmtpServer.StateMachine
             new SmtpState(SmtpStateId.WithinTransaction)
             {
                 { NoopCommand.Command },
+                { HelpCommand.Command },
+                { VrfyCommand.Command },
+                { ExpnCommand.Command },
                 { RsetCommand.Command, WaitingForMailSecureWhenSecure },
                 { QuitCommand.Command },
                 { RcptCommand.Command, SmtpStateId.CanAcceptData },
@@ -49,6 +61,9 @@ namespace SmtpServer.StateMachine
             new SmtpState(SmtpStateId.CanAcceptData)
             {
                 { NoopCommand.Command },
+                { HelpCommand.Command },
+                { VrfyCommand.Command },
+                { ExpnCommand.Command },
                 { RsetCommand.Command, WaitingForMailSecureWhenSecure },
                 { QuitCommand.Command },
                 { RcptCommand.Command },

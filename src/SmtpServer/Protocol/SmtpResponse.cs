@@ -110,10 +110,14 @@
                 case SmtpReplyCode.ServiceReady:
                 case SmtpReplyCode.ServiceClosingTransmissionChannel:
                 case SmtpReplyCode.Ok:
+                case SmtpReplyCode.HelpResponse:
                     return new SmtpEnhancedStatusCode(2, 0, 0);
 
                 case SmtpReplyCode.AuthenticationSuccessful:
                     return new SmtpEnhancedStatusCode(2, 7, 0);
+
+                case SmtpReplyCode.CantVerifyUser:
+                    return new SmtpEnhancedStatusCode(2, 5, 2);
 
                 case SmtpReplyCode.ServiceUnavailable:
                     return new SmtpEnhancedStatusCode(4, 3, 0);
