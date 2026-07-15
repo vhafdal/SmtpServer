@@ -69,6 +69,7 @@ namespace SmtpServer.Protocol
             yield return "PIPELINING";
             yield return "8BITMIME";
             yield return "SMTPUTF8";
+            yield return "DSN";
 
             if (context.Pipe.IsSecure == false && context.EndpointDefinition.CertificateFactory != null)
             {

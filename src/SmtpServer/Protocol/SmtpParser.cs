@@ -313,9 +313,16 @@ namespace SmtpServer.Protocol
                 return false;
             }
 
-            // TODO: support optional service extension parameters here
+            reader.Skip(TokenKind.Space);
 
-            command = _smtpCommandFactory.CreateRcpt(mailbox);
+            if (reader.TryMake(TryMakeMailParameters, out IReadOnlyDictionary<string, string> parameters) == false)
+            {
+                parameters = new Dictionary<string, string>();
+            }
+
+            command = _smtpCommandFactory is IParameterizedSmtpCommandFactory parameterizedSmtpCommandFactory
+                ? parameterizedSmtpCommandFactory.CreateRcpt(mailbox, parameters)
+                : _smtpCommandFactory.CreateRcpt(mailbox);
             return true;
         }
 

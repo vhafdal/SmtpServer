@@ -174,6 +174,23 @@ namespace SmtpServer.Tests
         }
 
         [Fact]
+        public void CanMakeMailWithDsnParameters()
+        {
+            // arrange
+            var reader = CreateReader("MAIL FROM:<sender@example.com> ret=FULL ENVID=abc123");
+
+            // act
+            var result = Parser.TryMakeMail(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.Null(errorResponse);
+            var mailCommand = Assert.IsType<MailCommand>(command);
+            Assert.Equal("FULL", mailCommand.Parameters["RET"]);
+            Assert.Equal("abc123", mailCommand.Parameters["envid"]);
+        }
+
+        [Fact]
         public void CanMakeMailWithNoAddress()
         {
             // arrange
@@ -242,6 +259,25 @@ namespace SmtpServer.Tests
             Assert.True(command is RcptCommand);
             Assert.Equal(user, ((RcptCommand)command).Address.User);
             Assert.Equal(host, ((RcptCommand)command).Address.Host);
+        }
+
+        [Fact]
+        public void CanMakeRcptWithDsnParameters()
+        {
+            // arrange
+            var reader = CreateReader("RCPT TO:<recipient@example.com> notify=SUCCESS,FAILURE ORCPT=rfc822;original@example.com");
+
+            // act
+            var result = Parser.TryMakeRcpt(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.Null(errorResponse);
+            var rcptCommand = Assert.IsType<RcptCommand>(command);
+            Assert.Equal("recipient", rcptCommand.Address.User);
+            Assert.Equal("example.com", rcptCommand.Address.Host);
+            Assert.Equal("SUCCESS,FAILURE", rcptCommand.Parameters["NOTIFY"]);
+            Assert.Equal("rfc822;original@example.com", rcptCommand.Parameters["orcpt"]);
         }
 
         [Theory]

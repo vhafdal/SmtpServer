@@ -4,6 +4,7 @@
 
 - Added: Configuration option to define the maximum allowed message size.
 - Added: Support for custom SMTP greeting messages.
+- Added: DSN envelope parameter support for MAIL and RCPT commands.
 - Improved: Optimized protection against excessively long text segments to enhance stability and performance.
 
 ```cs

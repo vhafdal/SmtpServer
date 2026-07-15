@@ -7,7 +7,7 @@ namespace SmtpServer.Protocol
     /// <summary>
     /// Smtp Command Factory
     /// </summary>
-    public class SmtpCommandFactory : ISmtpCommandFactory
+    public class SmtpCommandFactory : IParameterizedSmtpCommandFactory
     {
         /// <inheritdoc />
         public virtual SmtpCommand CreateHelo(string domainOrAddress)
@@ -30,7 +30,13 @@ namespace SmtpServer.Protocol
         /// <inheritdoc />
         public virtual SmtpCommand CreateRcpt(IMailbox address)
         {
-            return new RcptCommand(address);
+            return CreateRcpt(address, new Dictionary<string, string>());
+        }
+
+        /// <inheritdoc />
+        public virtual SmtpCommand CreateRcpt(IMailbox address, IReadOnlyDictionary<string, string> parameters)
+        {
+            return new RcptCommand(address, parameters);
         }
 
         /// <inheritdoc />
