@@ -9,6 +9,7 @@ using SmtpServer.Storage;
 using SmtpServer.Tests.Mocks;
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
@@ -201,11 +202,12 @@ namespace SmtpServer.Tests
                 var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
 
                 Assert.Equal(
-                    "250-localhost Hello example.com, haven't we met before?\r\n" +
-                    "250-PIPELINING\r\n" +
-                    "250-8BITMIME\r\n" +
-                    "250 SMTPUTF8\r\n",
-                    response);
+                   "250-localhost Hello example.com, haven't we met before?\r\n" +
+                   "250-PIPELINING\r\n" +
+                   "250-8BITMIME\r\n" +
+                   "250-SMTPUTF8\r\n" +
+                   "250 DSN\r\n",
+                   response);
             }
         }
 
@@ -225,6 +227,52 @@ namespace SmtpServer.Tests
                 Assert.Equal("test3@test.com", MessageStore.Messages[0].Transaction.To[1].AsAddress());
                 Assert.Equal("test4@test.com", MessageStore.Messages[0].Transaction.To[2].AsAddress());
             }
+        }
+
+        [Fact]
+        public async Task CanReceiveDsnEnvelopeParameters()
+        {
+            IReadOnlyDictionary<string, string> filterParameters = null;
+            var mailboxFilter = new ParameterizedMailboxFilter((context, to, from, parameters, cancellationToken) =>
+            {
+                filterParameters = parameters;
+                return Task.FromResult(true);
+            });
+
+            using (CreateServer(services => services.Add(mailboxFilter)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.Contains("DSN", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com> RET=FULL ENVID=abc123");
+                Assert.StartsWith("250 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com> notify=SUCCESS,FAILURE orcpt=rfc822;original@example.com");
+                Assert.StartsWith("250 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("DATA");
+                Assert.StartsWith("354", response);
+
+                response = await rawSmtpClient.SendCommandAsync("From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: DSN\r\n\r\nbody\r\n.");
+                Assert.StartsWith("250 Ok", response);
+            }
+
+            Assert.Single(MessageStore.Messages);
+            var transaction = MessageStore.Messages[0].Transaction;
+            Assert.Equal("FULL", transaction.Parameters["ret"]);
+            Assert.Equal("abc123", transaction.Parameters["ENVID"]);
+
+            var recipient = Assert.Single(transaction.GetRecipients());
+            Assert.Equal("recipient@example.com", recipient.Address.AsAddress());
+            Assert.Equal("SUCCESS,FAILURE", recipient.Parameters["NOTIFY"]);
+            Assert.Equal("rfc822;original@example.com", recipient.Parameters["ORCPT"]);
+
+            Assert.NotNull(filterParameters);
+            Assert.Equal("SUCCESS,FAILURE", filterParameters["notify"]);
+            Assert.Equal("rfc822;original@example.com", filterParameters["orcpt"]);
         }
 
         [Fact(Skip = "Command timeout wont work properly until https://github.com/dotnet/corefx/issues/15033")]
@@ -790,6 +838,27 @@ namespace SmtpServer.Tests
             public bool StreamingSaveCalled { get; private set; }
 
             public string Message { get; private set; }
+        }
+
+        sealed class ParameterizedMailboxFilter : MailboxFilter
+        {
+            readonly Func<ISessionContext, IMailbox, IMailbox, IReadOnlyDictionary<string, string>, CancellationToken, Task<bool>> _canDeliverDelegate;
+
+            public ParameterizedMailboxFilter(
+                Func<ISessionContext, IMailbox, IMailbox, IReadOnlyDictionary<string, string>, CancellationToken, Task<bool>> canDeliverDelegate)
+            {
+                _canDeliverDelegate = canDeliverDelegate;
+            }
+
+            public override Task<bool> CanDeliverToAsync(
+                ISessionContext context,
+                IMailbox to,
+                IMailbox @from,
+                IReadOnlyDictionary<string, string> parameters,
+                CancellationToken cancellationToken)
+            {
+                return _canDeliverDelegate(context, to, @from, parameters, cancellationToken);
+            }
         }
     }
 }

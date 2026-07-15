@@ -18,7 +18,10 @@ SmtpServer currently supports the following extensions:
 - PIPELINING
 - 8BITMIME
 - SMTPUTF8
+- DSN
 - AUTH PLAIN LOGIN
+
+DSN support parses and exposes `RET`, `ENVID`, `NOTIFY`, and `ORCPT` envelope parameters. Applications remain responsible for generating and delivering delivery status notifications from their message store or mailbox filter code.
 
 ## Installation
 

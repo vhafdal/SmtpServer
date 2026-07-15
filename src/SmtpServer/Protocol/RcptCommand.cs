@@ -23,7 +23,8 @@ namespace SmtpServer.Protocol
         /// Constructor.
         /// </summary>
         /// <param name="address">The address.</param>
-        public RcptCommand(IMailbox address) : this(address, new Dictionary<string, string>())
+        public RcptCommand(IMailbox address)
+            : this(address, new Dictionary<string, string>())
         {
         }
 
@@ -35,7 +36,7 @@ namespace SmtpServer.Protocol
         public RcptCommand(IMailbox address, IReadOnlyDictionary<string, string> parameters) : base(Command)
         {
             Address = address;
-            Parameters = parameters;
+            Parameters = parameters ?? new Dictionary<string, string>();
         }
 
         /// <summary>
@@ -51,10 +52,15 @@ namespace SmtpServer.Protocol
 
             using var container = new DisposableContainer<IMailboxFilter>(mailboxFilter);
 
-            switch (await container.Instance.CanDeliverToAsync(context, Address, context.Transaction.From, cancellationToken).ConfigureAwait(false))
+            var canDeliverTo = container.Instance is IParameterizedMailboxFilter parameterizedMailboxFilter
+                ? parameterizedMailboxFilter.CanDeliverToAsync(context, Address, context.Transaction.From, Parameters, cancellationToken)
+                : container.Instance.CanDeliverToAsync(context, Address, context.Transaction.From, cancellationToken);
+
+            switch (await canDeliverTo.ConfigureAwait(false))
             {
                 case true:
                     context.Transaction.To.Add(Address);
+                    context.Transaction.Recipients.Add(new SmtpMessageRecipient(Address, Parameters));
                     await context.Pipe.Output.WriteReplyAsync(SmtpResponse.Ok, cancellationToken).ConfigureAwait(false);
                     return true;
 
