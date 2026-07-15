@@ -23,6 +23,8 @@ SmtpServer currently supports the following extensions:
 
 DSN support parses and exposes `RET`, `ENVID`, `NOTIFY`, and `ORCPT` envelope parameters. Applications remain responsible for generating and delivering delivery status notifications from their message store or mailbox filter code.
 
+SMTP replies include enhanced status codes for common success, syntax, authentication, mailbox, size, bad sequence, and transaction failure responses. AUTH continuation challenges are left unchanged for SASL compatibility.
+
 ## Installation
 
 The package is available on [NuGet](https://www.nuget.org/packages/SmtpServer)

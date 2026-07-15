@@ -5,6 +5,7 @@
 - Added: Configuration option to define the maximum allowed message size.
 - Added: Support for custom SMTP greeting messages.
 - Added: DSN envelope parameter support for MAIL and RCPT commands.
+- Added: Enhanced status code support for common SMTP responses.
 - Fixed: NetworkBufferSize now controls the stream read buffer used by the SMTP connection pipe.
 - Improved: Reduced allocations in EHLO response generation and AUTH credential parsing.
 - Improved: Optimized protection against excessively long text segments to enhance stability and performance.

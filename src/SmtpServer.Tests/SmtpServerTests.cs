@@ -160,10 +160,10 @@ namespace SmtpServer.Tests
                 Assert.StartsWith("250-", ehloResponse);
 
                 var response = await rawSmtpClient.SendCommandAsync(command);
-                Assert.StartsWith("535 authentication failed", response);
+                Assert.StartsWith("535 5.7.8 authentication failed", response);
 
                 response = await rawSmtpClient.SendCommandAsync("NOOP");
-                Assert.StartsWith("250 Ok", response);
+                Assert.StartsWith("250 2.0.0 Ok", response);
             }
         }
 
@@ -184,10 +184,10 @@ namespace SmtpServer.Tests
                 Assert.StartsWith("334 VXNlcm5hbWU6", response);
 
                 response = await rawSmtpClient.SendCommandAsync("not-base64");
-                Assert.StartsWith("535 authentication failed", response);
+                Assert.StartsWith("535 5.7.8 authentication failed", response);
 
                 response = await rawSmtpClient.SendCommandAsync("NOOP");
-                Assert.StartsWith("250 Ok", response);
+                Assert.StartsWith("250 2.0.0 Ok", response);
             }
         }
 
@@ -248,16 +248,16 @@ namespace SmtpServer.Tests
                 Assert.Contains("DSN", response);
 
                 response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com> RET=FULL ENVID=abc123");
-                Assert.StartsWith("250 Ok", response);
+                Assert.StartsWith("250 2.0.0 Ok", response);
 
                 response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com> notify=SUCCESS,FAILURE orcpt=rfc822;original@example.com");
-                Assert.StartsWith("250 Ok", response);
+                Assert.StartsWith("250 2.0.0 Ok", response);
 
                 response = await rawSmtpClient.SendCommandAsync("DATA");
                 Assert.StartsWith("354", response);
 
                 response = await rawSmtpClient.SendCommandAsync("From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: DSN\r\n\r\nbody\r\n.");
-                Assert.StartsWith("250 Ok", response);
+                Assert.StartsWith("250 2.0.0 Ok", response);
             }
 
             Assert.Single(MessageStore.Messages);
@@ -377,7 +377,7 @@ namespace SmtpServer.Tests
             }
 
             Assert.True(isSessionCancelled, "Smtp session is not cancelled");
-            Assert.Equal("554 \r\n221 The session has be cancelled.\r\n", smtpResponse);
+            Assert.Equal("554 5.0.0\r\n221 2.0.0 The session has be cancelled.\r\n", smtpResponse);
 
             Assert.True(stopwatch.Elapsed > sessionTimeout, "SessionTimeout not reached");
         }
