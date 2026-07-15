@@ -1,5 +1,23 @@
 # Change Log
 
+## v11.2.0
+
+- Added: Configurable SMTP extension surface for SMTPUTF8, DSN, and CHUNKING. Extensions remain enabled by default for compatibility and can be disabled through `SmtpServerOptionsBuilder.Extensions(...)`.
+- Added: Session policy callbacks for accepted connections and EHLO/HELO identity checks through `SmtpServerOptionsBuilder.SessionPolicy(...)`.
+- Added: Safe command snapshots on command events so AUTH arguments can be logged without exposing credentials.
+
+```cs
+var options = new SmtpServerOptionsBuilder()
+	.ServerName("My mail server")
+	.Extensions(extensions => extensions
+		.SmtpUtf8(false)
+		.Dsn(false)
+		.Chunking(false))
+	.SessionPolicy(policy => policy
+		.OnConnectionAccepted((context, token) => Task.FromResult(SmtpResponse.Ok))
+		.OnHelo((context, name, token) => Task.FromResult(SmtpResponse.Ok)));
+```
+
 ## v11.1.0
 
 - Added: Configuration option to define the maximum allowed message size.

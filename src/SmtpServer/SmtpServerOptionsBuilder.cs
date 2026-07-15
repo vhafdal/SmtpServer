@@ -30,6 +30,8 @@ namespace SmtpServer
                 MaxAuthenticationAttempts = 3,
                 NetworkBufferSize = 128,
                 CommandWaitTimeout = TimeSpan.FromMinutes(5),
+                Extensions = new SmtpServerExtensionOptions(),
+                SessionPolicy = new SmtpServerSessionPolicyOptions(),
                 CustomSmtpGreeting = null,
             };
 
@@ -158,6 +160,40 @@ namespace SmtpServer
         }
 
         /// <summary>
+        /// Configures the SMTP extensions that are advertised and accepted.
+        /// </summary>
+        /// <param name="configure">The callback used to configure the SMTP extension options.</param>
+        /// <returns>A OptionsBuilder to continue building on.</returns>
+        public SmtpServerOptionsBuilder Extensions(Action<SmtpServerExtensionOptions> configure)
+        {
+            if (configure == null)
+            {
+                throw new ArgumentNullException(nameof(configure));
+            }
+
+            _setters.Add(options => configure(options.Extensions));
+
+            return this;
+        }
+
+        /// <summary>
+        /// Configures optional SMTP session policy callbacks.
+        /// </summary>
+        /// <param name="configure">The callback used to configure the SMTP session policy options.</param>
+        /// <returns>A OptionsBuilder to continue building on.</returns>
+        public SmtpServerOptionsBuilder SessionPolicy(Action<SmtpServerSessionPolicyOptions> configure)
+        {
+            if (configure == null)
+            {
+                throw new ArgumentNullException(nameof(configure));
+            }
+
+            _setters.Add(options => configure(options.SessionPolicy));
+
+            return this;
+        }
+
+        /// <summary>
         /// Sets the size of the buffer for each read operation.
         /// </summary>
         /// <param name="value">The buffer size for each read operation.</param>
@@ -231,6 +267,16 @@ namespace SmtpServer
             /// Gets or sets the SMTP server name.
             /// </summary>
             public string ServerName { get; set; }
+
+            /// <summary>
+            /// Gets or sets the SMTP extension options.
+            /// </summary>
+            public SmtpServerExtensionOptions Extensions { get; set; }
+
+            /// <summary>
+            /// Gets or sets the SMTP session policy options.
+            /// </summary>
+            public SmtpServerSessionPolicyOptions SessionPolicy { get; set; }
 
             /// <summary>
             /// Gets or sets the endpoint to listen on.

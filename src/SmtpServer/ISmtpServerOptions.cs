@@ -34,6 +34,16 @@ namespace SmtpServer
         string ServerName { get; }
 
         /// <summary>
+        /// Gets the SMTP extension options.
+        /// </summary>
+        SmtpServerExtensionOptions Extensions { get; }
+
+        /// <summary>
+        /// Gets the SMTP session policy options.
+        /// </summary>
+        SmtpServerSessionPolicyOptions SessionPolicy { get; }
+
+        /// <summary>
         /// Gets the collection of endpoints to listen on.
         /// </summary>
         IReadOnlyList<IEndpointDefinition> Endpoints { get; }

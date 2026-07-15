@@ -34,6 +34,11 @@ namespace SmtpServer.Protocol
         /// if the current state is to be maintained.</returns>
         internal override async Task<bool> ExecuteAsync(SmtpSessionContext context, CancellationToken cancellationToken)
         {
+            if (await AcceptHeloAsync(context, cancellationToken).ConfigureAwait(false) == false)
+            {
+                return false;
+            }
+
             var greeting = GetGreeting(context);
 
             using (var extensions = GetExtensions(context).GetEnumerator())
@@ -81,9 +86,21 @@ namespace SmtpServer.Protocol
         {
             yield return "PIPELINING";
             yield return "8BITMIME";
-            yield return "SMTPUTF8";
-            yield return "DSN";
-            yield return "CHUNKING";
+
+            if (context.ServerOptions.Extensions.SmtpUtf8Enabled)
+            {
+                yield return "SMTPUTF8";
+            }
+
+            if (context.ServerOptions.Extensions.DsnEnabled)
+            {
+                yield return "DSN";
+            }
+
+            if (context.ServerOptions.Extensions.ChunkingEnabled)
+            {
+                yield return "CHUNKING";
+            }
 
             if (context.Pipe.IsSecure == false && context.EndpointDefinition.CertificateFactory != null)
             {
@@ -110,7 +127,25 @@ namespace SmtpServer.Protocol
                 return context.Pipe.IsSecure || context.EndpointDefinition.AllowUnsecureAuthentication;
             }
         }
-        
+
+        async Task<bool> AcceptHeloAsync(SmtpSessionContext context, CancellationToken cancellationToken)
+        {
+            var policy = context.ServerOptions.SessionPolicy;
+            if (policy.Helo == null)
+            {
+                return true;
+            }
+
+            var response = await policy.Helo(context, DomainOrAddress, cancellationToken).ConfigureAwait(false);
+            if (SmtpSession.IsSuccessResponse(response))
+            {
+                return true;
+            }
+
+            await context.Pipe.Output.WriteReplyAsync(response, cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
         /// <summary>
         /// Gets the domain name or address literal.
         /// </summary>

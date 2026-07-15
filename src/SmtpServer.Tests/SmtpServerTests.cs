@@ -213,6 +213,151 @@ namespace SmtpServer.Tests
         }
 
         [Fact]
+        public async Task CanDisableAdvertisedExtensions()
+        {
+            using (CreateServer(options => options.Extensions(extensions => extensions.SmtpUtf8(false).Dsn(false).Chunking(false))))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+
+                Assert.Equal(
+                   "250-localhost Hello example.com, haven't we met before?\r\n" +
+                   "250-PIPELINING\r\n" +
+                   "250 8BITMIME\r\n",
+                   response);
+                Assert.DoesNotContain("SMTPUTF8", response);
+                Assert.DoesNotContain("DSN", response);
+                Assert.DoesNotContain("CHUNKING", response);
+            }
+        }
+
+        [Fact]
+        public async Task DisabledChunkingRejectsBdat()
+        {
+            using (CreateServer(options => options.Extensions(extensions => extensions.Chunking(false))))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.DoesNotContain("CHUNKING", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendBdatAsync("BDAT 4 LAST", "test");
+                Assert.StartsWith("502 5.5.1 CHUNKING is not enabled", response);
+            }
+
+            Assert.Empty(MessageStore.Messages);
+        }
+
+        [Fact]
+        public async Task DisabledDsnRejectsEnvelopeParameters()
+        {
+            using (CreateServer(options => options.Extensions(extensions => extensions.Dsn(false))))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.DoesNotContain("DSN", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com> RET=FULL");
+                Assert.StartsWith("504 5.5.4 DSN is not enabled", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com> NOTIFY=SUCCESS");
+                Assert.StartsWith("504 5.5.4 DSN is not enabled", response);
+            }
+        }
+
+        [Fact]
+        public async Task DisabledSmtpUtf8RejectsParameterAndUtf8Mailbox()
+        {
+            using (CreateServer(options => options.Extensions(extensions => extensions.SmtpUtf8(false))))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.DoesNotContain("SMTPUTF8", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com> SMTPUTF8");
+                Assert.StartsWith("504 5.5.4 SMTPUTF8 is not enabled", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<pelé@example.com>");
+                Assert.StartsWith("553 5.1.3 mailbox name not allowed", response);
+            }
+        }
+
+        [Fact]
+        public async Task SessionPolicyCanRejectConnectionBeforeGreeting()
+        {
+            using (CreateServer(options => options.SessionPolicy(policy => policy.OnConnectionAccepted((context, token) => Task.FromResult(new SmtpResponse(SmtpReplyCode.ServiceUnavailable, "blocked"))))))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                var response = await rawSmtpClient.ConnectAndReadGreetingAsync();
+
+                Assert.Equal("421 4.3.0 blocked\r\n", response);
+            }
+        }
+
+        [Fact]
+        public async Task SessionPolicyCanRejectHelo()
+        {
+            using (CreateServer(options => options.SessionPolicy(policy => policy.OnHelo((context, name, token) => Task.FromResult(new SmtpResponse(SmtpReplyCode.TransactionFailed, "bad helo"))))))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+
+                Assert.Equal("554 5.0.0 bad helo\r\n", response);
+            }
+        }
+
+        [Fact]
+        public async Task CommandEventSafeSnapshotRedactsAuthArgument()
+        {
+            SmtpCommandSnapshot safeCommand = null;
+            var userAuthenticator = new DelegatingUserAuthenticator((user, password) => false);
+
+            using (var disposable = CreateServer(endpoint => endpoint.AllowUnsecureAuthentication(), services => services.Add(userAuthenticator)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                EventHandler<SessionEventArgs> sessionCreatedHandler = delegate (object sender, SessionEventArgs args)
+                {
+                    args.Context.CommandExecuting += (_, commandArgs) => safeCommand = commandArgs.SafeCommand;
+                };
+
+                disposable.Server.SessionCreated += sessionCreatedHandler;
+
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.StartsWith("250-", response);
+
+                response = await rawSmtpClient.SendCommandAsync("AUTH PLAIN AHVzZXIAcGFzc3dvcmQ=");
+                Assert.StartsWith("535 5.7.8 authentication failed", response);
+
+                disposable.Server.SessionCreated -= sessionCreatedHandler;
+            }
+
+            Assert.NotNull(safeCommand);
+            Assert.Equal("AUTH", safeCommand.Name);
+            Assert.Equal("Plain <redacted>", safeCommand.Argument);
+            Assert.Equal("AUTH Plain <redacted>", safeCommand.ToString());
+        }
+
+        [Fact]
         public async Task EhloAdvertisesSizeWhenMessageSizeLimitIsConfigured()
         {
             using (CreateServer(c => c.MaxMessageSize(1024)))

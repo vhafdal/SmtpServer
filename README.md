@@ -34,6 +34,18 @@ DSN support parses and exposes `RET`, `ENVID`, `NOTIFY`, and `ORCPT` envelope pa
 
 CHUNKING support accepts `BDAT <size> [LAST]` message content without DATA dot-stuffing. Multi-chunk messages are stored only after the `LAST` chunk; strict maximum message size limits are enforced across the full BDAT transfer.
 
+SMTPUTF8, DSN, and CHUNKING are enabled by default for compatibility. Applications can disable advertised and accepted support explicitly:
+
+```cs
+var options = new SmtpServerOptionsBuilder()
+    .ServerName("localhost")
+    .Extensions(extensions => extensions
+        .SmtpUtf8(false)
+        .Dsn(false)
+        .Chunking(false))
+    .Build();
+```
+
 STARTTLS is advertised only when the endpoint has a certificate and the current connection is not already secure.
 
 AUTH PLAIN LOGIN is advertised only when an authenticator is registered and the current connection is secure or the endpoint explicitly allows insecure authentication.
@@ -45,6 +57,19 @@ HELP is implemented for basic command discovery. VRFY and EXPN are accepted, but
 ## Configuration Limits
 
 `MaxMessageSize(length, handling)` applies to DATA and BDAT message content. `MaxCommandLineLength(length)` applies separately to SMTP command lines and AUTH continuation lines; the default is 4096 bytes, excluding the terminating CRLF.
+
+## Session Policy
+
+Connection and HELO/EHLO policy can be configured without replacing command handlers:
+
+```cs
+var options = new SmtpServerOptionsBuilder()
+    .ServerName("localhost")
+    .SessionPolicy(policy => policy
+        .OnConnectionAccepted((context, token) => Task.FromResult(SmtpResponse.Ok))
+        .OnHelo((context, name, token) => Task.FromResult(SmtpResponse.Ok)))
+    .Build();
+```
 
 ## Installation
 
