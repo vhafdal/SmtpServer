@@ -1,5 +1,9 @@
 # Change Log
 
+## v11.2.1
+
+- Fixed: Repacked the SS-17 feature surface from the correct release build so the package includes configurable SMTP extensions, session policy callbacks, and safe command snapshots.
+
 ## v11.2.0
 
 - Added: Configurable SMTP extension surface for SMTPUTF8, DSN, and CHUNKING. Extensions remain enabled by default for compatibility and can be disabled through `SmtpServerOptionsBuilder.Extensions(...)`.
