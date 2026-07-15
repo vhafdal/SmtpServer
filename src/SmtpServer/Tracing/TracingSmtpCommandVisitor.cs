@@ -107,7 +107,9 @@ namespace SmtpServer.Tracing
         /// <param name="command">The command that is being visited.</param>
         protected override void Visit(RcptCommand command)
         {
-            _output.WriteLine("RCPT: Address={0}", command.Address.AsAddress());
+            _output.WriteLine("RCPT: Address={0} Parameters={1}",
+                command.Address.AsAddress(),
+                string.Join(",", command.Parameters.Select(kvp => $"{kvp.Key}={kvp.Value}")));
         }
 
         /// <summary>

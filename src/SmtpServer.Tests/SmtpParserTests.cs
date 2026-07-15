@@ -244,6 +244,41 @@ namespace SmtpServer.Tests
             Assert.Equal(host, ((RcptCommand)command).Address.Host);
         }
 
+        [Fact]
+        public void CanMakeRcptWithParameters()
+        {
+            // arrange
+            var reader = CreateReader("RCPT TO:<cain.osullivan@gmail.com> NOTIFY=SUCCESS,FAILURE ORCPT=rfc822;cain.osullivan@gmail.com");
+
+            // act
+            var result = Parser.TryMakeRcpt(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is RcptCommand);
+            var rcpt = (RcptCommand)command;
+            Assert.Equal("cain.osullivan", rcpt.Address.User);
+            Assert.Equal("gmail.com", rcpt.Address.Host);
+            Assert.Equal(2, rcpt.Parameters.Count);
+            Assert.Equal("SUCCESS,FAILURE", rcpt.Parameters["NOTIFY"]);
+            Assert.Equal("rfc822;cain.osullivan@gmail.com", rcpt.Parameters["ORCPT"]);
+        }
+
+        [Fact]
+        public void CanNotMakeRcptWithInvalidParameters()
+        {
+            // arrange
+            var reader = CreateReader("RCPT TO:<cain.osullivan@gmail.com> NOTIFY=");
+
+            // act
+            var result = Parser.TryMakeRcpt(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.False(result);
+            Assert.Null(command);
+            Assert.NotNull(errorResponse);
+        }
+
         [Theory]
         [InlineData("RCPT TO:<someone@@example.com>")]
         [InlineData("RCPT TO:<someone@example..com>")]

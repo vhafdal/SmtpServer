@@ -39,6 +39,15 @@ namespace SmtpServer.Protocol
         SmtpCommand CreateRcpt(IMailbox address);
 
         /// <summary>
+        /// Create a RCPT command.
+        /// </summary>
+        /// <param name="address">The address that the mail is to.</param>
+        /// <param name="parameters">The optional parameters for the recipient.</param>
+        /// <returns>The RCPT command.</returns>
+        SmtpCommand CreateRcpt(IMailbox address, IReadOnlyDictionary<string, string> parameters)
+            => CreateRcpt(address);
+
+        /// <summary>
         /// Create a DATA command.
         /// </summary>
         /// <returns>The DATA command.</returns>
