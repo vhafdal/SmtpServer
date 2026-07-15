@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using SmtpServer.ComponentModel;
@@ -22,9 +23,19 @@ namespace SmtpServer.Protocol
         /// Constructor.
         /// </summary>
         /// <param name="address">The address.</param>
-        public RcptCommand(IMailbox address) : base(Command)
+        public RcptCommand(IMailbox address) : this(address, new Dictionary<string, string>())
+        {
+        }
+
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="address">The address.</param>
+        /// <param name="parameters">The optional parameters for the recipient.</param>
+        public RcptCommand(IMailbox address, IReadOnlyDictionary<string, string> parameters) : base(Command)
         {
             Address = address;
+            Parameters = parameters;
         }
 
         /// <summary>
@@ -59,5 +70,10 @@ namespace SmtpServer.Protocol
         /// Gets the address that the mail is to.
         /// </summary>
         public IMailbox Address { get; }
+
+        /// <summary>
+        /// The list of extended recipient parameters.
+        /// </summary>
+        public IReadOnlyDictionary<string, string> Parameters { get; }
     }
 }
