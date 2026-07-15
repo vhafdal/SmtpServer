@@ -48,6 +48,30 @@ namespace SmtpServer.Protocol
             => CreateRcpt(address);
 
         /// <summary>
+        /// Create a HELP command.
+        /// </summary>
+        /// <param name="argument">The optional command argument.</param>
+        /// <returns>The HELP command.</returns>
+        SmtpCommand CreateHelp(string argument)
+            => new HelpCommand(argument);
+
+        /// <summary>
+        /// Create a VRFY command.
+        /// </summary>
+        /// <param name="argument">The verification argument.</param>
+        /// <returns>The VRFY command.</returns>
+        SmtpCommand CreateVrfy(string argument)
+            => new VrfyCommand(argument);
+
+        /// <summary>
+        /// Create an EXPN command.
+        /// </summary>
+        /// <param name="argument">The expansion argument.</param>
+        /// <returns>The EXPN command.</returns>
+        SmtpCommand CreateExpn(string argument)
+            => new ExpnCommand(argument);
+
+        /// <summary>
         /// Create a DATA command.
         /// </summary>
         /// <returns>The DATA command.</returns>

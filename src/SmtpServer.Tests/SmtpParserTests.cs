@@ -60,6 +60,9 @@ namespace SmtpServer.Tests
         [InlineData("HELO example.com", typeof(HeloCommand))]
         [InlineData("MAIL FROM:<cain.osullivan@gmail.com>", typeof(MailCommand))]
         [InlineData("RCPT TO:<cain.osullivan@gmail.com>", typeof(RcptCommand))]
+        [InlineData("HELP", typeof(HelpCommand))]
+        [InlineData("VRFY cain.osullivan@gmail.com", typeof(VrfyCommand))]
+        [InlineData("EXPN staff", typeof(ExpnCommand))]
         [InlineData("DATA", typeof(DataCommand))]
         [InlineData("QUIT", typeof(QuitCommand))]
         [InlineData("RSET", typeof(RsetCommand))]
@@ -108,6 +111,86 @@ namespace SmtpServer.Tests
             // assert
             Assert.True(result);
             Assert.True(command is NoopCommand);
+        }
+
+        [Theory]
+        [InlineData("HELP", "")]
+        [InlineData("HELP MAIL", "MAIL")]
+        public void CanMakeHelp(string input, string argument)
+        {
+            // arrange
+            var reader = CreateReader(input);
+
+            // act
+            var result = Parser.TryMakeHelp(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is HelpCommand);
+            Assert.Equal(argument, ((HelpCommand)command).Argument);
+            Assert.Null(errorResponse);
+        }
+
+        [Fact]
+        public void CanMakeVrfy()
+        {
+            // arrange
+            var reader = CreateReader("VRFY user@example.com");
+
+            // act
+            var result = Parser.TryMakeVrfy(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is VrfyCommand);
+            Assert.Equal("user@example.com", ((VrfyCommand)command).Argument);
+            Assert.Null(errorResponse);
+        }
+
+        [Fact]
+        public void CanNotMakeVrfyWithoutArgument()
+        {
+            // arrange
+            var reader = CreateReader("VRFY");
+
+            // act
+            var result = Parser.TryMakeVrfy(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.False(result);
+            Assert.Null(command);
+            Assert.Equal(SmtpReplyCode.SyntaxError, errorResponse.ReplyCode);
+        }
+
+        [Fact]
+        public void CanMakeExpn()
+        {
+            // arrange
+            var reader = CreateReader("EXPN staff");
+
+            // act
+            var result = Parser.TryMakeExpn(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is ExpnCommand);
+            Assert.Equal("staff", ((ExpnCommand)command).Argument);
+            Assert.Null(errorResponse);
+        }
+
+        [Fact]
+        public void CanNotMakeExpnWithoutArgument()
+        {
+            // arrange
+            var reader = CreateReader("EXPN");
+
+            // act
+            var result = Parser.TryMakeExpn(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.False(result);
+            Assert.Null(command);
+            Assert.Equal(SmtpReplyCode.SyntaxError, errorResponse.ReplyCode);
         }
 
         [Fact]

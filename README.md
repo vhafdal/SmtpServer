@@ -25,6 +25,8 @@ DSN support parses and exposes `RET`, `ENVID`, `NOTIFY`, and `ORCPT` envelope pa
 
 SMTP replies include enhanced status codes for common success, syntax, authentication, mailbox, size, bad sequence, and transaction failure responses. AUTH continuation challenges are left unchanged for SASL compatibility.
 
+HELP is implemented for basic command discovery. VRFY and EXPN are accepted, but the default policy avoids mailbox or mailing list enumeration and returns conservative `252` responses. Applications that intentionally disclose verification or expansion results can register `ISmtpCommandPolicy` or `ISmtpCommandPolicyFactory`.
+
 ## Installation
 
 The package is available on [NuGet](https://www.nuget.org/packages/SmtpServer)
@@ -48,7 +50,7 @@ await smtpServer.StartAsync(CancellationToken.None);
 
 ### What hooks are provided?
 
-There are three hooks that can be implemented; IMessageStore, IMailboxFilter, and IUserAuthenticator.
+There are four hooks that can be implemented: `IMessageStore`, `IMailboxFilter`, `IUserAuthenticator`, and `ISmtpCommandPolicy`.
 
 ```cs
 var options = new SmtpServerOptionsBuilder()
