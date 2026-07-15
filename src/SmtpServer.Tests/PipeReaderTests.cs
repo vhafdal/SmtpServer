@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.IO.Pipelines;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using SmtpServer.IO;
 using SmtpServer.Protocol;
@@ -70,6 +71,34 @@ namespace SmtpServer.Tests
             Assert.Equal("abcde", line1);
             Assert.Equal("fghij", line2);
             Assert.Equal("klmno", line3);
+        }
+
+        [Fact]
+        public async Task CanWriteEnhancedStatusCodeReply()
+        {
+            // arrange
+            var pipe = new Pipe();
+
+            // act
+            await pipe.Writer.WriteReplyAsync(SmtpResponse.AuthenticationFailed, CancellationToken.None);
+            pipe.Writer.Complete();
+
+            // assert
+            Assert.Equal("535 5.7.8 authentication failed\r\n", await ReadAllAsync(pipe.Reader));
+        }
+
+        [Fact]
+        public async Task CanWriteAuthContinuationWithoutEnhancedStatusCode()
+        {
+            // arrange
+            var pipe = new Pipe();
+
+            // act
+            await pipe.Writer.WriteReplyAsync(new SmtpResponse(SmtpReplyCode.ContinueWithAuth, "VXNlcm5hbWU6"), CancellationToken.None);
+            pipe.Writer.Complete();
+
+            // assert
+            Assert.Equal("334 VXNlcm5hbWU6\r\n", await ReadAllAsync(pipe.Reader));
         }
 
         [Fact]
