@@ -22,9 +22,21 @@ SmtpServer currently supports the following extensions:
 - CHUNKING
 - AUTH PLAIN LOGIN
 
+PIPELINING is advertised because the session reads queued command lines sequentially from the pipe. Commands are still validated against the SMTP state machine in order.
+
+8BITMIME is advertised because message content is accepted and stored as bytes without 7-bit rewriting. Applications remain responsible for MIME validation or normalization in their message store if they need stricter policy.
+
+SMTPUTF8 support covers UTF-8 mailbox/domain parsing and message acceptance. Applications remain responsible for downstream delivery compatibility and storage policy.
+
+SIZE is advertised when `MaxMessageSize(...)` is configured. MAIL `SIZE` parameters are checked before accepting the transaction, and strict DATA/BDAT body limits are enforced while reading content.
+
 DSN support parses and exposes `RET`, `ENVID`, `NOTIFY`, and `ORCPT` envelope parameters. Applications remain responsible for generating and delivering delivery status notifications from their message store or mailbox filter code.
 
 CHUNKING support accepts `BDAT <size> [LAST]` message content without DATA dot-stuffing. Multi-chunk messages are stored only after the `LAST` chunk; strict maximum message size limits are enforced across the full BDAT transfer.
+
+STARTTLS is advertised only when the endpoint has a certificate and the current connection is not already secure.
+
+AUTH PLAIN LOGIN is advertised only when an authenticator is registered and the current connection is secure or the endpoint explicitly allows insecure authentication.
 
 SMTP replies include enhanced status codes for common success, syntax, authentication, mailbox, size, bad sequence, and transaction failure responses. AUTH continuation challenges are left unchanged for SASL compatibility.
 

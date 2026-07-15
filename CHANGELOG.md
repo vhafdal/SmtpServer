@@ -12,6 +12,7 @@
 - Fixed: NetworkBufferSize now controls the stream read buffer used by the SMTP connection pipe.
 - Improved: Reduced allocations in EHLO response generation and AUTH credential parsing.
 - Improved: Optimized protection against excessively long text segments to enhance stability and performance.
+- Improved: Documented ESMTP extension advertisement behavior and added tests for conditional EHLO SIZE, STARTTLS, and AUTH advertisement.
 
 ```cs
 var options = new SmtpServerOptionsBuilder()
