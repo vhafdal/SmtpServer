@@ -213,6 +213,66 @@ namespace SmtpServer.Tests
         }
 
         [Fact]
+        public async Task EhloAdvertisesSizeWhenMessageSizeLimitIsConfigured()
+        {
+            using (CreateServer(c => c.MaxMessageSize(1024)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+
+                Assert.Contains("250 SIZE 1024\r\n", response);
+            }
+        }
+
+        [Fact]
+        public async Task EhloAdvertisesStartTlsOnlyWhenCertificateIsAvailable()
+        {
+            using (CreateServer(endpoint => endpoint.Certificate(CreateCertificate())))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+
+                Assert.Contains("STARTTLS", response);
+            }
+        }
+
+        [Fact]
+        public async Task EhloAdvertisesAuthOnlyWhenAuthenticationIsAvailableOnCurrentConnection()
+        {
+            var userAuthenticator = new DelegatingUserAuthenticator((user, password) => true);
+
+            using (CreateServer(endpoint => endpoint.AllowUnsecureAuthentication(), services => services.Add(userAuthenticator)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+
+                Assert.Contains("AUTH PLAIN LOGIN", response);
+            }
+        }
+
+        [Fact]
+        public async Task EhloDoesNotAdvertiseAuthOnInsecureConnectionWhenAuthenticationRequiresTls()
+        {
+            var userAuthenticator = new DelegatingUserAuthenticator((user, password) => true);
+
+            using (CreateServer(services => services.Add(userAuthenticator)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+
+                Assert.DoesNotContain("AUTH PLAIN LOGIN", response);
+            }
+        }
+
+        [Fact]
         public void CanReceiveBccInMessageTransaction()
         {
             using (CreateServer())
