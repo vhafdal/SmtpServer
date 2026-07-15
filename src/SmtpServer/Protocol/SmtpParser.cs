@@ -39,85 +39,87 @@ namespace SmtpServer.Protocol
         /// <returns>Returns true if a command could be made, false if not.</returns>
         public bool TryMake(ref ReadOnlySequence<byte> buffer, out SmtpCommand command, out SmtpResponse errorResponse)
         {
-            var reader = new TokenReader(buffer);
-            var verb = reader.Peek();
+            var verbReader = new TokenReader(buffer);
 
-            if (verb.Kind != TokenKind.Text)
+            if (verbReader.TryMake(TryMakeText, out var verb) == false)
             {
-                return MakeUnrecognized(ref reader, out command, out errorResponse);
+                var unrecognizedReader = new TokenReader(buffer);
+                return MakeUnrecognized(ref unrecognizedReader, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "EHLO"))
+            var reader = new TokenReader(buffer);
+
+            if (IsVerb(verb, "EHLO"))
             {
                 return Make(ref reader, TryMakeEhlo, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "HELO"))
+            if (IsVerb(verb, "HELO"))
             {
                 return Make(ref reader, TryMakeHelo, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "MAIL"))
+            if (IsVerb(verb, "MAIL"))
             {
                 return Make(ref reader, TryMakeMail, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "RCPT"))
+            if (IsVerb(verb, "RCPT"))
             {
                 return Make(ref reader, TryMakeRcpt, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "HELP"))
+            if (IsVerb(verb, "HELP"))
             {
                 return Make(ref reader, TryMakeHelp, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "VRFY"))
+            if (IsVerb(verb, "VRFY"))
             {
                 return Make(ref reader, TryMakeVrfy, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "EXPN"))
+            if (IsVerb(verb, "EXPN"))
             {
                 return Make(ref reader, TryMakeExpn, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "BDAT"))
+            if (IsVerb(verb, "BDAT"))
             {
                 return Make(ref reader, TryMakeBdat, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "DATA"))
+            if (IsVerb(verb, "DATA"))
             {
                 return Make(ref reader, TryMakeData, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "QUIT"))
+            if (IsVerb(verb, "QUIT"))
             {
                 return Make(ref reader, TryMakeQuit, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "RSET"))
+            if (IsVerb(verb, "RSET"))
             {
                 return Make(ref reader, TryMakeRset, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "NOOP"))
+            if (IsVerb(verb, "NOOP"))
             {
                 return Make(ref reader, TryMakeNoop, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "STARTTLS"))
+            if (IsVerb(verb, "STARTTLS"))
             {
                 return Make(ref reader, TryMakeStartTls, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "AUTH"))
+            if (IsVerb(verb, "AUTH"))
             {
                 return Make(ref reader, TryMakeAuth, out command, out errorResponse);
             }
 
-            if (IsVerb(verb.Text, "PROXY"))
+            if (IsVerb(verb, "PROXY"))
             {
                 return Make(ref reader, TryMakeProxy, out command, out errorResponse);
             }
@@ -137,28 +139,21 @@ namespace SmtpServer.Protocol
             }
         }
 
-        static bool IsVerb(ReadOnlySpan<byte> verb, string expected)
+        static bool IsVerb(ReadOnlySequence<byte> verb, string expected)
         {
             if (verb.Length != expected.Length)
             {
                 return false;
             }
 
-            for (var i = 0; i < verb.Length; i++)
-            {
-                var ch = verb[i];
-                if (ch >= 'a' && ch <= 'z')
-                {
-                    ch = (byte)(ch - 32);
-                }
+            Span<char> text = stackalloc char[expected.Length];
 
-                if (ch != expected[i])
-                {
-                    return false;
-                }
+            for (var i = 0; i < expected.Length; i++)
+            {
+                text[i] = expected[i];
             }
 
-            return true;
+            return verb.CaseInsensitiveStringEquals(ref text);
         }
 
         static bool MakeUnrecognized(ref TokenReader reader, out SmtpCommand command, out SmtpResponse errorResponse)

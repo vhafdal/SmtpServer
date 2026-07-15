@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
+using SmtpServer.IO;
 using SmtpServer.Mail;
 using SmtpServer.Protocol;
 using SmtpServer.Text;
@@ -17,6 +18,23 @@ namespace SmtpServer.Tests
             var buffer = Encoding.UTF8.GetBytes(text);
 
             return new TokenReader(new ReadOnlySequence<byte>(buffer, 0, buffer.Length));
+        }
+
+        static TokenReader CreateReader(params string[] values)
+        {
+            return new TokenReader(CreateSequence(values));
+        }
+
+        static ReadOnlySequence<byte> CreateSequence(params string[] values)
+        {
+            var segments = new ByteArraySegmentList();
+
+            foreach (var value in values)
+            {
+                segments.Append(Encoding.UTF8.GetBytes(value));
+            }
+
+            return segments.Build();
         }
 
         static SmtpParser Parser => new SmtpParser(new SmtpCommandFactory());
@@ -84,6 +102,82 @@ namespace SmtpServer.Tests
             Assert.True(result);
             Assert.Equal(commandType, command.GetType());
             Assert.Null(errorResponse);
+        }
+
+        [Fact]
+        public void CanMakeSplitMailWithEsmtpParameters()
+        {
+            // arrange
+            var sequence = CreateSequence("MA", "IL FROM:<sender", "@example.com> SI", "ZE=123 SMTP", "UTF8");
+
+            // act
+            var result = Parser.TryMake(ref sequence, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.Null(errorResponse);
+
+            var mailCommand = Assert.IsType<MailCommand>(command);
+            Assert.Equal("sender", mailCommand.Address.User);
+            Assert.Equal("example.com", mailCommand.Address.Host);
+            Assert.Equal("123", mailCommand.Parameters["SIZE"]);
+            Assert.True(mailCommand.Parameters.ContainsKey("SMTPUTF8"));
+        }
+
+        [Fact]
+        public void CanMakeSplitRcptWithEsmtpParameters()
+        {
+            // arrange
+            var sequence = CreateSequence("RC", "PT TO:<recipient@example.com> NOTIFY=SUCCESS,FAIL", "URE OR", "CPT=rfc822;original@example.com");
+
+            // act
+            var result = Parser.TryMake(ref sequence, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.Null(errorResponse);
+
+            var rcptCommand = Assert.IsType<RcptCommand>(command);
+            Assert.Equal("recipient", rcptCommand.Address.User);
+            Assert.Equal("example.com", rcptCommand.Address.Host);
+            Assert.Equal("SUCCESS,FAILURE", rcptCommand.Parameters["NOTIFY"]);
+            Assert.Equal("rfc822;original@example.com", rcptCommand.Parameters["ORCPT"]);
+        }
+
+        [Fact]
+        public void CanMakeSplitAuthPlain()
+        {
+            // arrange
+            var sequence = CreateSequence("AU", "TH PL", "AIN Y2Fpbi5vc3", "VsbGl2YW5AZ21haWwuY29t");
+
+            // act
+            var result = Parser.TryMake(ref sequence, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.Null(errorResponse);
+
+            var authCommand = Assert.IsType<AuthCommand>(command);
+            Assert.Equal(AuthenticationMethod.Plain, authCommand.Method);
+            Assert.Equal("Y2Fpbi5vc3VsbGl2YW5AZ21haWwuY29t", authCommand.Parameter);
+        }
+
+        [Fact]
+        public void CanMakeSplitBdatLast()
+        {
+            // arrange
+            var sequence = CreateSequence("BD", "AT 102", "4 LA", "ST");
+
+            // act
+            var result = Parser.TryMake(ref sequence, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.Null(errorResponse);
+
+            var bdatCommand = Assert.IsType<BdatCommand>(command);
+            Assert.Equal(1024, bdatCommand.Size);
+            Assert.True(bdatCommand.IsLast);
         }
 
         [Fact]
