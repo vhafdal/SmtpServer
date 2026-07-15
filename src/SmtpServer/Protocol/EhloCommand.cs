@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SmtpServer.Authentication;
@@ -35,14 +34,28 @@ namespace SmtpServer.Protocol
         /// if the current state is to be maintained.</returns>
         internal override async Task<bool> ExecuteAsync(SmtpSessionContext context, CancellationToken cancellationToken)
         {
-            var output = new[] { GetGreeting(context) }.Union(GetExtensions(context)).ToArray();
+            var greeting = GetGreeting(context);
 
-            for (var i = 0; i < output.Length - 1; i++)
+            using (var extensions = GetExtensions(context).GetEnumerator())
             {
-                context.Pipe.Output.WriteLine($"250-{output[i]}");
-            }
+                if (extensions.MoveNext() == false)
+                {
+                    context.Pipe.Output.WriteLine($"250 {greeting}");
+                }
+                else
+                {
+                    context.Pipe.Output.WriteLine($"250-{greeting}");
 
-            context.Pipe.Output.WriteLine($"250 {output[output.Length - 1]}");
+                    var extension = extensions.Current;
+                    while (extensions.MoveNext())
+                    {
+                        context.Pipe.Output.WriteLine($"250-{extension}");
+                        extension = extensions.Current;
+                    }
+
+                    context.Pipe.Output.WriteLine($"250 {extension}");
+                }
+            }
 
             await context.Pipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
 

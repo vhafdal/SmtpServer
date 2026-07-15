@@ -126,6 +126,72 @@ namespace SmtpServer.Tests
             }
         }
 
+        [Theory]
+        [InlineData("AUTH PLAIN not-base64")]
+        [InlineData("AUTH LOGIN not-base64")]
+        public async Task CanFailInvalidBase64AuthenticationWithoutFaulting(string command)
+        {
+            var userAuthenticator = new DelegatingUserAuthenticator((user, password) => true);
+
+            using (CreateServer(endpoint => endpoint.AllowUnsecureAuthentication(), services => services.Add(userAuthenticator)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var ehloResponse = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.StartsWith("250-", ehloResponse);
+
+                var response = await rawSmtpClient.SendCommandAsync(command);
+                Assert.StartsWith("535 authentication failed", response);
+
+                response = await rawSmtpClient.SendCommandAsync("NOOP");
+                Assert.StartsWith("250 Ok", response);
+            }
+        }
+
+        [Fact]
+        public async Task CanFailInvalidBase64AuthenticationContinuationWithoutFaulting()
+        {
+            var userAuthenticator = new DelegatingUserAuthenticator((user, password) => true);
+
+            using (CreateServer(endpoint => endpoint.AllowUnsecureAuthentication(), services => services.Add(userAuthenticator)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var ehloResponse = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.StartsWith("250-", ehloResponse);
+
+                var response = await rawSmtpClient.SendCommandAsync("AUTH LOGIN");
+                Assert.StartsWith("334 VXNlcm5hbWU6", response);
+
+                response = await rawSmtpClient.SendCommandAsync("not-base64");
+                Assert.StartsWith("535 authentication failed", response);
+
+                response = await rawSmtpClient.SendCommandAsync("NOOP");
+                Assert.StartsWith("250 Ok", response);
+            }
+        }
+
+        [Fact]
+        public async Task CanReturnStableEhloResponse()
+        {
+            using (CreateServer())
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+
+                Assert.Equal(
+                    "250-localhost Hello example.com, haven't we met before?\r\n" +
+                    "250-PIPELINING\r\n" +
+                    "250-8BITMIME\r\n" +
+                    "250 SMTPUTF8\r\n",
+                    response);
+            }
+        }
+
         [Fact]
         public void CanReceiveBccInMessageTransaction()
         {
