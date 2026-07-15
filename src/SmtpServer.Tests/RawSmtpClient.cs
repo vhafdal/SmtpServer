@@ -41,6 +41,14 @@ namespace SmtpServer.Tests
             return false;
         }
 
+        internal async Task<string> ConnectAndReadGreetingAsync()
+        {
+            await _tcpClient.ConnectAsync(new IPEndPoint(IPAddress.Parse(_host), _port));
+            _networkStream = _tcpClient.GetStream();
+
+            return await WaitForDataAsync();
+        }
+
         internal async Task<string> SendCommandAsync(string command)
         {
             var commandData = Encoding.UTF8.GetBytes($"{command}\r\n");

@@ -44,6 +44,11 @@ namespace SmtpServer
                 return;
             }
 
+            if (await IsConnectionAcceptedAsync(cancellationToken).ConfigureAwait(false) == false)
+            {
+                return;
+            }
+
             await OutputGreetingAsync(cancellationToken).ConfigureAwait(false);
 
             await ExecuteAsync(_context, cancellationToken).ConfigureAwait(false);
@@ -200,6 +205,36 @@ namespace SmtpServer
             }
             
             return _context.Pipe.Output.FlushAsync(cancellationToken);
+        }
+
+        async Task<bool> IsConnectionAcceptedAsync(CancellationToken cancellationToken)
+        {
+            var policy = _context.ServerOptions.SessionPolicy;
+            if (policy.ConnectionAccepted == null)
+            {
+                return true;
+            }
+
+            var response = await policy.ConnectionAccepted(_context, cancellationToken).ConfigureAwait(false);
+            if (IsSuccessResponse(response))
+            {
+                return true;
+            }
+
+            await _context.Pipe.Output.WriteReplyAsync(response, cancellationToken).ConfigureAwait(false);
+            _context.IsQuitRequested = true;
+            return false;
+        }
+
+        internal static bool IsSuccessResponse(SmtpResponse response)
+        {
+            if (response == null)
+            {
+                return true;
+            }
+
+            var replyCode = (int)response.ReplyCode;
+            return replyCode >= 200 && replyCode < 400;
         }
     }
 }

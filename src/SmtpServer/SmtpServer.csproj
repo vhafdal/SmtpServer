@@ -5,7 +5,8 @@
     <LangVersion>8.0</LangVersion>
     <AssemblyName>SmtpServer</AssemblyName>
     <RootNamespace>SmtpServer</RootNamespace>
-    <Version>11.1.0</Version>
+    <PackageId>DevOp.SMTPServer</PackageId>
+    <Version>11.2.0</Version>
     <Description>High-performance, flexible SMTP server implementation for .NET with support for ESMTP, TLS, authentication, and custom message handling.</Description>
     <Authors>Cain O'Sullivan</Authors>
     <Copyright>2015-2023</Copyright>

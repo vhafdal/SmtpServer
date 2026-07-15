@@ -37,6 +37,12 @@ namespace SmtpServer.Protocol
         /// <inheritdoc />
         internal override async Task<bool> ExecuteAsync(SmtpSessionContext context, CancellationToken cancellationToken)
         {
+            if (context.ServerOptions.Extensions.ChunkingEnabled == false)
+            {
+                await context.Pipe.Output.WriteReplyAsync(new SmtpResponse(SmtpReplyCode.CommandNotImplemented, "CHUNKING is not enabled"), cancellationToken).ConfigureAwait(false);
+                return false;
+            }
+
             context.Properties[LastChunkKey] = IsLast;
 
             if (context.Transaction.To.Count == 0)
