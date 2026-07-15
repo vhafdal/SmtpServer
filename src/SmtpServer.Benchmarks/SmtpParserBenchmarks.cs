@@ -20,6 +20,10 @@ namespace SmtpServer.Benchmarks
             "MAIL FROM:<sender@example.com> SIZE=12345 SMTPUTF8",
             "RCPT TO:<recipient@example.com>",
             "AUTH PLAIN Y2Fpbi5vc3VsbGl2YW5AZ21haWwuY29t",
+            "HELP",
+            "VRFY recipient@example.com",
+            "EXPN staff",
+            "BDAT 1024 LAST",
             "PROXY TCP4 192.168.1.1 192.168.1.2 1234 16789",
             "ABCDE FGHIJ KLMNO")]
         public string Input { get; set; }
@@ -58,6 +62,10 @@ namespace SmtpServer.Benchmarks
                 || TryMakeNoop(buffer, out command, out errorResponse)
                 || TryMakeStartTls(buffer, out command, out errorResponse)
                 || TryMakeAuth(buffer, out command, out errorResponse)
+                || TryMakeHelp(buffer, out command, out errorResponse)
+                || TryMakeVrfy(buffer, out command, out errorResponse)
+                || TryMakeExpn(buffer, out command, out errorResponse)
+                || TryMakeBdat(buffer, out command, out errorResponse)
                 || TryMakeProxy(buffer, out command, out errorResponse)
                 || MakeUnrecognized(out command, out errorResponse);
         }
@@ -130,6 +138,34 @@ namespace SmtpServer.Benchmarks
             var reader = new TokenReader(buffer);
 
             return _parser.TryMakeAuth(ref reader, out command, out errorResponse);
+        }
+
+        bool TryMakeHelp(ReadOnlySequence<byte> buffer, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            var reader = new TokenReader(buffer);
+
+            return _parser.TryMakeHelp(ref reader, out command, out errorResponse);
+        }
+
+        bool TryMakeVrfy(ReadOnlySequence<byte> buffer, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            var reader = new TokenReader(buffer);
+
+            return _parser.TryMakeVrfy(ref reader, out command, out errorResponse);
+        }
+
+        bool TryMakeExpn(ReadOnlySequence<byte> buffer, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            var reader = new TokenReader(buffer);
+
+            return _parser.TryMakeExpn(ref reader, out command, out errorResponse);
+        }
+
+        bool TryMakeBdat(ReadOnlySequence<byte> buffer, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            var reader = new TokenReader(buffer);
+
+            return _parser.TryMakeBdat(ref reader, out command, out errorResponse);
         }
 
         bool TryMakeProxy(ReadOnlySequence<byte> buffer, out SmtpCommand command, out SmtpResponse errorResponse)
