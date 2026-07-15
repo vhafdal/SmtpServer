@@ -74,7 +74,7 @@ namespace SmtpServer.Benchmarks
 
             var context = new SmtpSessionContext(serviceProvider, options, endpointDefinition)
             {
-                Pipe = new SecurableDuplexPipe(stream, () => { })
+                Pipe = new SecurableDuplexPipe(stream, 128, () => { })
             };
 
             return context;
