@@ -312,6 +312,24 @@ namespace SmtpServer.Tests
             Assert.Equal(16789, ((ProxyCommand)command).DestinationEndpoint.Port);
         }
 
+        [Theory]
+        [InlineData("PROXY TCP5 192.168.1.1 192.168.1.2 1234 16789")]
+        [InlineData("PROXY TCP46 192.168.1.1 192.168.1.2 1234 16789")]
+        [InlineData("PROXY TCPA 192.168.1.1 192.168.1.2 1234 16789")]
+        public void CanNotMakeProxyWithInvalidTcpVersion(string input)
+        {
+            // arrange
+            var reader = CreateReader(input);
+
+            // act
+            var result = Parser.TryMakeProxy(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.False(result);
+            Assert.Null(command);
+            Assert.Null(errorResponse);
+        }
+
         [Fact]
         public void CanMakeAtom()
         {
