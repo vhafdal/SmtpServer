@@ -55,6 +55,33 @@ namespace SmtpServer.Tests
             Assert.Equal(SmtpReplyCode.SyntaxError, errorResponse.ReplyCode);
         }
 
+        [Theory]
+        [InlineData("ehlo example.com", typeof(EhloCommand))]
+        [InlineData("HELO example.com", typeof(HeloCommand))]
+        [InlineData("MAIL FROM:<cain.osullivan@gmail.com>", typeof(MailCommand))]
+        [InlineData("RCPT TO:<cain.osullivan@gmail.com>", typeof(RcptCommand))]
+        [InlineData("DATA", typeof(DataCommand))]
+        [InlineData("QUIT", typeof(QuitCommand))]
+        [InlineData("RSET", typeof(RsetCommand))]
+        [InlineData("NOOP", typeof(NoopCommand))]
+        [InlineData("STARTTLS", typeof(StartTlsCommand))]
+        [InlineData("AUTH PLAIN Y2Fpbi5vc3VsbGl2YW5AZ21haWwuY29t", typeof(AuthCommand))]
+        [InlineData("PROXY UNKNOWN", typeof(ProxyCommand))]
+        public void CanMakeKnownCommandUsingTopLevelDispatch(string input, Type commandType)
+        {
+            // arrange
+            var buffer = Encoding.UTF8.GetBytes(input);
+            var sequence = new ReadOnlySequence<byte>(buffer, 0, buffer.Length);
+
+            // act
+            var result = Parser.TryMake(ref sequence, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.Equal(commandType, command.GetType());
+            Assert.Null(errorResponse);
+        }
+
         [Fact]
         public void CanMakeQuit()
         {
