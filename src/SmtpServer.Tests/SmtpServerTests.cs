@@ -346,6 +346,43 @@ namespace SmtpServer.Tests
         }
 
         [Fact]
+        public async Task BufferedBdatPassesBoundedSequenceToMessageStore()
+        {
+            var messageStore = new BufferedSequenceInspectingMessageStore();
+
+            using (CreateServer(services => services.Add(messageStore)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.Contains("CHUNKING", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                var part1 = Encoding.UTF8.GetBytes("From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: BDAT\r\n\r\n");
+                var part2 = Encoding.UTF8.GetBytes("bounded buffered body with unicode þæö\r\n");
+
+                response = await rawSmtpClient.SendBdatAsync($"BDAT {part1.Length}", part1);
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendBdatAsync($"BDAT {part2.Length} LAST", part2);
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                var expected = part1.Concat(part2).ToArray();
+
+                Assert.True(messageStore.SaveCalled);
+                Assert.Equal(expected.Length, messageStore.BufferLength);
+                Assert.Equal(expected.Length, messageStore.FirstSegmentLength);
+                Assert.Equal(expected, messageStore.Message);
+            }
+        }
+
+        [Fact]
         public async Task CanReceiveMessageUsingStreamingBdatChunks()
         {
             var streamingMessageStore = new StreamingMockMessageStore();
@@ -1012,6 +1049,27 @@ namespace SmtpServer.Tests
             public bool StreamingSaveCalled { get; private set; }
 
             public string Message { get; private set; }
+        }
+
+        sealed class BufferedSequenceInspectingMessageStore : MessageStore
+        {
+            public override Task<SmtpResponse> SaveAsync(ISessionContext context, IMessageTransaction transaction, ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+            {
+                SaveCalled = true;
+                BufferLength = buffer.Length;
+                FirstSegmentLength = buffer.First.Length;
+                Message = buffer.ToArray();
+
+                return Task.FromResult(SmtpResponse.Ok);
+            }
+
+            public bool SaveCalled { get; private set; }
+
+            public long BufferLength { get; private set; }
+
+            public int FirstSegmentLength { get; private set; }
+
+            public byte[] Message { get; private set; }
         }
 
         sealed class ParameterizedMailboxFilter : MailboxFilter
