@@ -3,6 +3,7 @@ using System.IO.Pipelines;
 using System.Text;
 using System.Threading.Tasks;
 using SmtpServer.IO;
+using SmtpServer.Protocol;
 using SmtpServer.Text;
 using Xunit;
 
@@ -92,6 +93,67 @@ namespace SmtpServer.Tests
 
             // assert
             Assert.Equal("abcd\r\n.1234", text);
+        }
+
+        [Fact]
+        public async Task CanStreamBlockWithDotStuffingRemoved()
+        {
+            // arrange
+            var reader = CreatePipeReader("abcd\r\n..1234\r\n.\r\n");
+            var writer = new Pipe();
+
+            var maxMessageSizeOptions = new MaxMessageSizeOptions();
+
+            // act
+            await reader.ReadDotBlockAsync(writer.Writer, maxMessageSizeOptions);
+            var text = await ReadAllAsync(writer.Reader);
+
+            // assert
+            Assert.Equal("abcd\r\n.1234", text);
+        }
+
+        [Fact]
+        public async Task CanEnforceMaxMessageSizeWhenStreamingBlock()
+        {
+            // arrange
+            var reader = CreatePipeReader("abcd\r\n1234\r\n.\r\n");
+            var writer = new Pipe();
+
+            var maxMessageSizeOptions = new MaxMessageSizeOptions(MaxMessageSizeHandling.Strict, 5);
+
+            // act
+            var exception = await Assert.ThrowsAsync<SmtpResponseException>(
+                async () => await reader.ReadDotBlockAsync(writer.Writer, maxMessageSizeOptions));
+
+            // assert
+            Assert.True(exception.IsQuitRequested);
+        }
+
+        static async Task<string> ReadAllAsync(PipeReader reader)
+        {
+            using var stream = new MemoryStream();
+
+            while (true)
+            {
+                var result = await reader.ReadAsync();
+                var buffer = result.Buffer;
+
+                foreach (var segment in buffer)
+                {
+                    stream.Write(segment.Span);
+                }
+
+                reader.AdvanceTo(buffer.End);
+
+                if (result.IsCompleted)
+                {
+                    break;
+                }
+            }
+
+            reader.Complete();
+
+            return Encoding.ASCII.GetString(stream.ToArray());
         }
     }
 }
