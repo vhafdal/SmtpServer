@@ -523,6 +523,14 @@ namespace SmtpServer.Tests
             Assert.True(stopped);
         }
 
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public void CanNotConfigureInvalidNetworkBufferSize(int value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new SmtpServerOptionsBuilder().NetworkBufferSize(value));
+        }
+
         public static X509Certificate2 CreateSelfSignedCertificate(string subjectName)
         {
             var validityPeriodInYears = 1;
