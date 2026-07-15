@@ -8,6 +8,7 @@
 - Added: Enhanced status code support for common SMTP responses.
 - Added: HELP, VRFY, and EXPN command handling with conservative default VRFY/EXPN responses and an opt-in `ISmtpCommandPolicy` extension point.
 - Added: CHUNKING/BDAT support with multi-chunk streaming, LAST chunk completion, and strict size-limit enforcement.
+- Added: `MaxCommandLineLength` option for SMTP command and AUTH continuation line limits, separate from message body size limits.
 - Fixed: NetworkBufferSize now controls the stream read buffer used by the SMTP connection pipe.
 - Improved: Reduced allocations in EHLO response generation and AUTH credential parsing.
 - Improved: Optimized protection against excessively long text segments to enhance stability and performance.
