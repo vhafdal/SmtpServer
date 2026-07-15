@@ -19,9 +19,12 @@ SmtpServer currently supports the following extensions:
 - 8BITMIME
 - SMTPUTF8
 - DSN
+- CHUNKING
 - AUTH PLAIN LOGIN
 
 DSN support parses and exposes `RET`, `ENVID`, `NOTIFY`, and `ORCPT` envelope parameters. Applications remain responsible for generating and delivering delivery status notifications from their message store or mailbox filter code.
+
+CHUNKING support accepts `BDAT <size> [LAST]` message content without DATA dot-stuffing. Multi-chunk messages are stored only after the `LAST` chunk; strict maximum message size limits are enforced across the full BDAT transfer.
 
 SMTP replies include enhanced status codes for common success, syntax, authentication, mailbox, size, bad sequence, and transaction failure responses. AUTH continuation challenges are left unchanged for SASL compatibility.
 

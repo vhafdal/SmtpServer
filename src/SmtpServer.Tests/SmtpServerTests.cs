@@ -206,7 +206,8 @@ namespace SmtpServer.Tests
                    "250-PIPELINING\r\n" +
                    "250-8BITMIME\r\n" +
                    "250-SMTPUTF8\r\n" +
-                   "250 DSN\r\n",
+                   "250-DSN\r\n" +
+                   "250 CHUNKING\r\n",
                    response);
             }
         }
@@ -284,6 +285,122 @@ namespace SmtpServer.Tests
                 response = await rawSmtpClient.SendCommandAsync("EXPN staff");
                 Assert.Equal("250 2.0.0 member@example.com\r\n", response);
             }
+        }
+
+        [Fact]
+        public async Task CanReceiveMessageUsingBdatLast()
+        {
+            using (CreateServer())
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.Contains("CHUNKING", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                const string message = "From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: BDAT\r\n\r\nchunked body\r\n";
+                response = await rawSmtpClient.SendBdatAsync($"BDAT {message.Length} LAST", message);
+                Assert.StartsWith("250 2.0.0 Ok", response);
+            }
+
+            var stored = Assert.Single(MessageStore.Messages);
+            Assert.Equal("chunked body", stored.Text());
+        }
+
+        [Fact]
+        public async Task CanReceiveMessageUsingMultipleBdatChunks()
+        {
+            using (CreateServer())
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.Contains("CHUNKING", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                const string part1 = "From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: BDAT\r\n\r\n";
+                const string part2 = "chunked body\r\n";
+
+                response = await rawSmtpClient.SendBdatAsync($"BDAT {part1.Length}", part1);
+                Assert.StartsWith("250 2.0.0 Ok", response);
+                Assert.Empty(MessageStore.Messages);
+
+                response = await rawSmtpClient.SendBdatAsync($"BDAT {part2.Length} LAST", part2);
+                Assert.StartsWith("250 2.0.0 Ok", response);
+            }
+
+            var stored = Assert.Single(MessageStore.Messages);
+            Assert.Equal("chunked body", stored.Text());
+        }
+
+        [Fact]
+        public async Task CanReceiveMessageUsingStreamingBdatChunks()
+        {
+            var streamingMessageStore = new StreamingMockMessageStore();
+
+            using (CreateServer(services => services.Add(streamingMessageStore)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.Contains("CHUNKING", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                const string part1 = "From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: BDAT\r\n\r\n";
+                const string part2 = "streamed body\r\n";
+
+                response = await rawSmtpClient.SendBdatAsync($"BDAT {part1.Length}", part1);
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendBdatAsync($"BDAT {part2.Length} LAST", part2);
+                Assert.StartsWith("250 2.0.0 Ok", response);
+            }
+
+            Assert.True(streamingMessageStore.StreamingSaveCalled);
+            Assert.False(streamingMessageStore.BufferedSaveCalled);
+            Assert.Contains("streamed body", streamingMessageStore.Message);
+        }
+
+        [Fact]
+        public async Task BdatHonorsStrictMessageSizeLimit()
+        {
+            using (CreateServer(c => c.MaxMessageSize(50, MaxMessageSizeHandling.Strict)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.Contains("CHUNKING", response);
+
+                response = await rawSmtpClient.SendCommandAsync("MAIL FROM:<sender@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendCommandAsync("RCPT TO:<recipient@example.com>");
+                Assert.StartsWith("250 2.0.0 Ok", response);
+
+                response = await rawSmtpClient.SendBdatAsync("BDAT 51 LAST", new string('x', 51));
+                Assert.Equal("552 5.3.4 message size exceeds fixed maximium message size\r\n", response);
+            }
+
+            Assert.Empty(MessageStore.Messages);
         }
 
         [Fact]

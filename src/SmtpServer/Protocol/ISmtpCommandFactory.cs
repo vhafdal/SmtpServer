@@ -72,6 +72,15 @@ namespace SmtpServer.Protocol
             => new ExpnCommand(argument);
 
         /// <summary>
+        /// Create a BDAT command.
+        /// </summary>
+        /// <param name="size">The chunk size.</param>
+        /// <param name="isLast">Whether this is the last chunk.</param>
+        /// <returns>The BDAT command.</returns>
+        SmtpCommand CreateBdat(long size, bool isLast)
+            => new BdatCommand(size, isLast);
+
+        /// <summary>
         /// Create a DATA command.
         /// </summary>
         /// <returns>The DATA command.</returns>

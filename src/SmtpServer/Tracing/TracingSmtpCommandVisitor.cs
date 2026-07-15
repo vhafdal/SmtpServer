@@ -102,6 +102,15 @@ namespace SmtpServer.Tracing
         }
 
         /// <summary>
+        /// Visit a BDAT command.
+        /// </summary>
+        /// <param name="command">The command that is being visited.</param>
+        protected override void Visit(BdatCommand command)
+        {
+            _output.WriteLine("BDAT: Size={0}, Last={1}", command.Size, command.IsLast);
+        }
+
+        /// <summary>
         /// Visit an NOOP command.
         /// </summary>
         /// <param name="command">The command that is being visited.</param>

@@ -58,6 +58,12 @@ namespace SmtpServer.Protocol
         }
 
         /// <inheritdoc />
+        public virtual SmtpCommand CreateBdat(long size, bool isLast)
+        {
+            return new BdatCommand(size, isLast);
+        }
+
+        /// <inheritdoc />
         public virtual SmtpCommand CreateData()
         {
             return new DataCommand();

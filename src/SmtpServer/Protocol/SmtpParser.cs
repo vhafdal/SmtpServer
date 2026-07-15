@@ -82,6 +82,11 @@ namespace SmtpServer.Protocol
                 return Make(ref reader, TryMakeExpn, out command, out errorResponse);
             }
 
+            if (IsVerb(verb.Text, "BDAT"))
+            {
+                return Make(ref reader, TryMakeBdat, out command, out errorResponse);
+            }
+
             if (IsVerb(verb.Text, "DATA"))
             {
                 return Make(ref reader, TryMakeData, out command, out errorResponse);
@@ -666,6 +671,103 @@ namespace SmtpServer.Protocol
                 command[1] = 'X';
                 command[2] = 'P';
                 command[3] = 'N';
+
+                return text.CaseInsensitiveStringEquals(ref command);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Make a BDAT command.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <param name="command">The command that is defined within the token reader.</param>
+        /// <param name="errorResponse">The error that indicates why the command could not be made.</param>
+        /// <returns>Returns true if a command could be made, false if not.</returns>
+        public bool TryMakeBdat(ref TokenReader reader, out SmtpCommand command, out SmtpResponse errorResponse)
+        {
+            command = null;
+            errorResponse = null;
+
+            if (reader.TryMake(TryMakeBdatLiteral) == false)
+            {
+                return false;
+            }
+
+            reader.Skip(TokenKind.Space);
+
+            if (reader.TryMake(TryMakeNumber, out var number) == false)
+            {
+                errorResponse = SmtpResponse.SyntaxError;
+                return false;
+            }
+
+            if (long.TryParse(StringUtil.Create(number), out var size) == false)
+            {
+                errorResponse = SmtpResponse.SyntaxError;
+                return false;
+            }
+
+            reader.Skip(TokenKind.Space);
+
+            var isLast = false;
+            if (reader.Peek().Kind != TokenKind.None)
+            {
+                if (reader.TryMake(TryMakeLastLiteral) == false)
+                {
+                    errorResponse = SmtpResponse.SyntaxError;
+                    return false;
+                }
+
+                isLast = true;
+            }
+
+            if (TryMakeEnd(ref reader) == false)
+            {
+                errorResponse = SmtpResponse.SyntaxError;
+                return false;
+            }
+
+            command = _smtpCommandFactory.CreateBdat(size, isLast);
+            return true;
+        }
+
+        /// <summary>
+        /// Try to make the BDAT text sequence.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <returns>true if the BDAT text sequence could be made, false if not.</returns>
+        public bool TryMakeBdatLiteral(ref TokenReader reader)
+        {
+            if (reader.TryMake(TryMakeText, out var text))
+            {
+                Span<char> command = stackalloc char[4];
+                command[0] = 'B';
+                command[1] = 'D';
+                command[2] = 'A';
+                command[3] = 'T';
+
+                return text.CaseInsensitiveStringEquals(ref command);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Try to make the LAST text sequence.
+        /// </summary>
+        /// <param name="reader">The reader to perform the operation on.</param>
+        /// <returns>true if the LAST text sequence could be made, false if not.</returns>
+        public bool TryMakeLastLiteral(ref TokenReader reader)
+        {
+            if (reader.TryMake(TryMakeText, out var text))
+            {
+                Span<char> command = stackalloc char[4];
+                command[0] = 'L';
+                command[1] = 'A';
+                command[2] = 'S';
+                command[3] = 'T';
 
                 return text.CaseInsensitiveStringEquals(ref command);
             }
