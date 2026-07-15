@@ -243,7 +243,7 @@ namespace SmtpServer.Protocol
             {
                 if (_streamingMessageStore == null)
                 {
-                    var buffer = new ReadOnlySequence<byte>(_buffer.ToArray());
+                    var buffer = CreateBufferedSequence(_buffer);
                     return await _messageStore.SaveAsync(_context, _context.Transaction, buffer, cancellationToken).ConfigureAwait(false);
                 }
 
@@ -280,6 +280,16 @@ namespace SmtpServer.Protocol
                 {
                     await _pipe.Reader.CompleteAsync().ConfigureAwait(false);
                 }
+            }
+
+            static ReadOnlySequence<byte> CreateBufferedSequence(MemoryStream buffer)
+            {
+                if (buffer.TryGetBuffer(out var segment) == false)
+                {
+                    return new ReadOnlySequence<byte>(buffer.ToArray());
+                }
+
+                return new ReadOnlySequence<byte>(segment.Array, segment.Offset, segment.Count);
             }
         }
     }

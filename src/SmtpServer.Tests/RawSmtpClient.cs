@@ -57,6 +57,15 @@ namespace SmtpServer.Tests
             return await WaitForDataAsync();
         }
 
+        internal async Task<string> SendBdatAsync(string command, byte[] data)
+        {
+            var commandData = Encoding.UTF8.GetBytes($"{command}\r\n");
+
+            await _networkStream.WriteAsync(commandData, 0, commandData.Length);
+            await _networkStream.WriteAsync(data, 0, data.Length);
+            return await WaitForDataAsync();
+        }
+
         internal async Task SendDataAsync(string data)
         {
             var mailData = Encoding.UTF8.GetBytes(data);
