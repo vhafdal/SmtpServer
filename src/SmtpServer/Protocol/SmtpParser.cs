@@ -39,18 +39,62 @@ namespace SmtpServer.Protocol
         /// <returns>Returns true if a command could be made, false if not.</returns>
         public bool TryMake(ref ReadOnlySequence<byte> buffer, out SmtpCommand command, out SmtpResponse errorResponse)
         {
-            return Make(buffer, TryMakeEhlo, out command, out errorResponse)
-                || Make(buffer, TryMakeHelo, out command, out errorResponse)
-                || Make(buffer, TryMakeMail, out command, out errorResponse)
-                || Make(buffer, TryMakeRcpt, out command, out errorResponse)
-                || Make(buffer, TryMakeData, out command, out errorResponse)
-                || Make(buffer, TryMakeQuit, out command, out errorResponse)
-                || Make(buffer, TryMakeRset, out command, out errorResponse)
-                || Make(buffer, TryMakeNoop, out command, out errorResponse)
-                || Make(buffer, TryMakeStartTls, out command, out errorResponse)
-                || Make(buffer, TryMakeAuth, out command, out errorResponse)
-                || Make(buffer, TryMakeProxy, out command, out errorResponse)
-                || Make(buffer, MakeUnrecognized, out command, out errorResponse);
+            if (Make(buffer, TryMakeEhlo, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeHelo, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeMail, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeRcpt, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeData, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeQuit, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeRset, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeNoop, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeStartTls, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeAuth, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            if (Make(buffer, TryMakeProxy, out command, out errorResponse) || errorResponse != null)
+            {
+                return command != null;
+            }
+
+            return Make(buffer, MakeUnrecognized, out command, out errorResponse);
 
             static bool Make(ReadOnlySequence<byte> buffer, TryMakeDelegate tryMakeDelegate, out SmtpCommand command, out SmtpResponse errorResponse)
             {
@@ -89,6 +133,12 @@ namespace SmtpServer.Protocol
 
             if (reader.TryMake(TryMakeDomain, out var domain))
             {
+                if (TryMakeEnd(ref reader) == false)
+                {
+                    errorResponse = SmtpResponse.SyntaxError;
+                    return false;
+                }
+
                 command = _smtpCommandFactory.CreateHelo(StringUtil.Create(domain, Encoding.UTF8));
                 return true;
             }
@@ -98,6 +148,12 @@ namespace SmtpServer.Protocol
             // address literal and there is no harm in accepting it
             if (reader.TryMake(TryMakeAddressLiteral, out var address))
             {
+                if (TryMakeEnd(ref reader) == false)
+                {
+                    errorResponse = SmtpResponse.SyntaxError;
+                    return false;
+                }
+
                 command = _smtpCommandFactory.CreateHelo(StringUtil.Create(address));
                 return true;
             }
@@ -148,12 +204,24 @@ namespace SmtpServer.Protocol
 
             if (reader.TryMake(TryMakeDomain, out var domain))
             {
+                if (TryMakeEnd(ref reader) == false)
+                {
+                    errorResponse = SmtpResponse.SyntaxError;
+                    return false;
+                }
+
                 command = _smtpCommandFactory.CreateEhlo(StringUtil.Create(domain, Encoding.UTF8));
                 return true;
             }
 
             if (reader.TryMake(TryMakeAddressLiteral, out var address))
             {
+                if (TryMakeEnd(ref reader) == false)
+                {
+                    errorResponse = SmtpResponse.SyntaxError;
+                    return false;
+                }
+
                 // remove the brackets
                 address = address.Slice(1, address.Length - 2);
 
@@ -223,9 +291,15 @@ namespace SmtpServer.Protocol
             reader.Skip(TokenKind.Space);
 
             // match the optional (ESMTP) parameters
-            if (reader.TryMake(TryMakeMailParameters, out IReadOnlyDictionary<string, string> parameters) == false)
+            IReadOnlyDictionary<string, string> parameters;
+            if (reader.Peek().Kind == TokenKind.None)
             {
                 parameters = new Dictionary<string, string>();
+            }
+            else if (reader.TryMake(TryMakeMailParameters, out parameters) == false)
+            {
+                errorResponse = SmtpResponse.SyntaxError;
+                return false;
             }
 
             command = _smtpCommandFactory.CreateMail(mailbox, parameters);
