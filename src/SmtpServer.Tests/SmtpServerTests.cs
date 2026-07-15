@@ -8,8 +8,10 @@ using SmtpServer.Protocol;
 using SmtpServer.Storage;
 using SmtpServer.Tests.Mocks;
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -50,6 +52,21 @@ namespace SmtpServer.Tests
                 Assert.Equal(1, MessageStore.Messages[0].Transaction.To.Count);
                 Assert.Equal("test2@test.com", MessageStore.Messages[0].Transaction.To[0].AsAddress());
             }
+        }
+
+        [Fact]
+        public void CanReceiveMessageUsingStreamingMessageStore()
+        {
+            var streamingMessageStore = new StreamingMockMessageStore();
+
+            using (CreateServer(services => services.Add(streamingMessageStore)))
+            {
+                MailClient.Send(MailClient.Message(from: "test1@test.com", to: "test2@test.com", text: "streamed body"));
+            }
+
+            Assert.True(streamingMessageStore.StreamingSaveCalled);
+            Assert.False(streamingMessageStore.BufferedSaveCalled);
+            Assert.Contains("streamed body", streamingMessageStore.Message);
         }
 
         [Theory]
@@ -655,5 +672,50 @@ namespace SmtpServer.Tests
         /// The cancellation token source for the test.
         /// </summary>
         public CancellationTokenSource CancellationTokenSource { get; }
+
+        sealed class StreamingMockMessageStore : MessageStore, IStreamingMessageStore
+        {
+            public override Task<SmtpResponse> SaveAsync(ISessionContext context, IMessageTransaction transaction, ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+            {
+                BufferedSaveCalled = true;
+
+                return Task.FromResult(SmtpResponse.Ok);
+            }
+
+            public async Task<SmtpResponse> SaveAsync(ISessionContext context, IMessageTransaction transaction, PipeReader reader, CancellationToken cancellationToken)
+            {
+                StreamingSaveCalled = true;
+
+                using var stream = new MemoryStream();
+
+                while (true)
+                {
+                    var result = await reader.ReadAsync(cancellationToken);
+                    var buffer = result.Buffer;
+
+                    foreach (var segment in buffer)
+                    {
+                        stream.Write(segment.Span);
+                    }
+
+                    reader.AdvanceTo(buffer.End);
+
+                    if (result.IsCompleted)
+                    {
+                        break;
+                    }
+                }
+
+                Message = Encoding.UTF8.GetString(stream.ToArray());
+
+                return SmtpResponse.Ok;
+            }
+
+            public bool BufferedSaveCalled { get; private set; }
+
+            public bool StreamingSaveCalled { get; private set; }
+
+            public string Message { get; private set; }
+        }
     }
 }

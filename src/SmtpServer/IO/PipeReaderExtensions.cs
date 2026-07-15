@@ -15,6 +15,7 @@ namespace SmtpServer.IO
         static readonly byte[] CRLF = { 13, 10 };
         static readonly byte[] DotBlock = { 13, 10, 46, 13, 10 };
         static readonly byte[] DotBlockStuffing = { 13, 10, 46, 46 };
+        const int DotBlockTailLength = 4;
 
         /// <summary>
         /// Read from the reader until the sequence is found.
@@ -175,6 +176,140 @@ namespace SmtpServer.IO
                 segments.Append(ref remaining);
                 
                 return segments.Build();
+            }
+        }
+
+        /// <summary>
+        /// Reads a dot block from the reader and writes the unstuffed content to the writer.
+        /// </summary>
+        /// <param name="reader">The reader to read from.</param>
+        /// <param name="writer">The writer to stream the message content to.</param>
+        /// <param name="maxMessageSizeOptions">Handling of MaxMessageSize.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The value that was read from the buffer.</returns>
+        internal static async ValueTask ReadDotBlockAsync(this PipeReader reader, PipeWriter writer, IMaxMessageSizeOptions maxMessageSizeOptions, CancellationToken cancellationToken = default)
+        {
+            if (reader == null)
+            {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (writer == null)
+            {
+                throw new ArgumentNullException(nameof(writer));
+            }
+
+            Exception error = null;
+
+            try
+            {
+                await ReadDotBlockAsync(reader, writer, maxMessageSizeOptions, cancellationToken, DotBlockTailLength).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+                throw;
+            }
+            finally
+            {
+                writer.Complete(error);
+            }
+        }
+
+        static async ValueTask ReadDotBlockAsync(PipeReader reader, PipeWriter writer, IMaxMessageSizeOptions maxMessageSizeOptions, CancellationToken cancellationToken, int tailLength)
+        {
+            long consumedLength = 0;
+
+            while (true)
+            {
+                var read = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                var buffer = read.Buffer;
+
+                if (buffer.IsEmpty && read.IsCompleted)
+                {
+                    return;
+                }
+
+                var head = buffer.GetPosition(0);
+                if (buffer.TryFind(DotBlock, ref head, out var tail))
+                {
+                    var body = buffer.Slice(buffer.Start, head);
+
+                    EnsureMessageSize(maxMessageSizeOptions, consumedLength + body.Length);
+
+                    await WriteUnstuffedAsync(writer, body, cancellationToken).ConfigureAwait(false);
+
+                    reader.AdvanceTo(tail);
+                    return;
+                }
+
+                if (read.IsCompleted)
+                {
+                    reader.AdvanceTo(buffer.End);
+                    return;
+                }
+
+                if (buffer.Length > tailLength)
+                {
+                    var safeLength = buffer.Length - tailLength;
+                    var safeBuffer = buffer.Slice(0, safeLength);
+
+                    EnsureMessageSize(maxMessageSizeOptions, consumedLength + safeBuffer.Length);
+
+                    await WriteUnstuffedAsync(writer, safeBuffer, cancellationToken).ConfigureAwait(false);
+
+                    consumedLength += safeBuffer.Length;
+
+                    reader.AdvanceTo(buffer.GetPosition(safeLength), buffer.End);
+                    continue;
+                }
+
+                reader.AdvanceTo(buffer.Start, buffer.End);
+            }
+        }
+
+        static void EnsureMessageSize(IMaxMessageSizeOptions maxMessageSizeOptions, long length)
+        {
+            if (maxMessageSizeOptions.Handling == MaxMessageSizeHandling.Strict && length > maxMessageSizeOptions.Length)
+            {
+                throw new SmtpResponseException(SmtpResponse.MaxMessageSizeExceeded, true);
+            }
+        }
+
+        static async ValueTask WriteUnstuffedAsync(PipeWriter writer, ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+        {
+            var head = buffer.GetPosition(0);
+            var start = head;
+
+            while (buffer.TryFind(DotBlockStuffing, ref head, out var tail))
+            {
+                var slice = buffer.Slice(start, buffer.GetPosition(3, head));
+
+                Write(writer, slice);
+
+                start = tail;
+                head = tail;
+            }
+
+            Write(writer, buffer.Slice(start));
+
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        static void Write(PipeWriter writer, ReadOnlySequence<byte> buffer)
+        {
+            var position = buffer.GetPosition(0);
+
+            while (buffer.TryGet(ref position, out var memory))
+            {
+                if (memory.Length == 0)
+                {
+                    continue;
+                }
+
+                var span = writer.GetSpan(memory.Length);
+                memory.Span.CopyTo(span);
+                writer.Advance(memory.Length);
             }
         }
     }
