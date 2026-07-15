@@ -37,6 +37,24 @@ namespace SmtpServer.Tests
             Assert.Equal(SmtpReplyCode.CommandNotImplemented, errorResponse.ReplyCode);
         }
 
+        [Theory]
+        [InlineData("HELO abc.example.com extra")]
+        [InlineData("MAIL FROM:<sender@example.com> SIZE=")]
+        public void CanReturnSyntaxErrorForMalformedKnownCommand(string input)
+        {
+            // arrange
+            var buffer = Encoding.UTF8.GetBytes(input);
+            var sequence = new ReadOnlySequence<byte>(buffer, 0, buffer.Length);
+
+            // act
+            var result = Parser.TryMake(ref sequence, out var command, out var errorResponse);
+
+            // assert
+            Assert.False(result);
+            Assert.Null(command);
+            Assert.Equal(SmtpReplyCode.SyntaxError, errorResponse.ReplyCode);
+        }
+
         [Fact]
         public void CanMakeQuit()
         {
@@ -84,6 +102,8 @@ namespace SmtpServer.Tests
         [InlineData("HELO abc.")]
         [InlineData("HELO -abc.com")]
         [InlineData("HELO ////")]
+        [InlineData("HELO abc.example.com extra")]
+        [InlineData("HELO [192.168.1.200] extra")]
         public void CanNotMakeHelo(string input)
         {
             // arrange
@@ -115,6 +135,23 @@ namespace SmtpServer.Tests
             Assert.True(result);
             Assert.True(command is EhloCommand);
             Assert.Equal(domainOrAddress, ((EhloCommand)command).DomainOrAddress);
+        }
+
+        [Theory]
+        [InlineData("EHLO abc.example.com extra")]
+        [InlineData("EHLO [192.168.1.200] extra")]
+        public void CanNotMakeEhlo(string input)
+        {
+            // arrange
+            var reader = CreateReader(input);
+
+            // act
+            var result = Parser.TryMakeEhlo(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.False(result);
+            Assert.Null(command);
+            Assert.NotNull(errorResponse);
         }
 
         [Fact]
@@ -209,6 +246,9 @@ namespace SmtpServer.Tests
 
         [Theory]
         [InlineData("MAIL FROM:cain")]
+        [InlineData("MAIL FROM:<cain.osullivan@gmail.com> SIZE=")]
+        [InlineData("MAIL FROM:<cain.osullivan@gmail.com> =BAD")]
+        [InlineData("MAIL FROM:<cain.osullivan@gmail.com> SIZE=123 =BAD")]
         public void CanNotMakeMail(string input)
         {
             // arrange
