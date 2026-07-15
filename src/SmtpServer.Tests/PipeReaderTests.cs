@@ -74,6 +74,34 @@ namespace SmtpServer.Tests
         }
 
         [Fact]
+        public async Task CanEnforceMaxCommandLineLength()
+        {
+            // arrange
+            var reader = CreatePipeReader("abcdef\r\n");
+
+            // act
+            var exception = await Assert.ThrowsAsync<SmtpResponseException>(
+                async () => await reader.ReadLineAsync(Encoding.ASCII, 5));
+
+            // assert
+            Assert.True(exception.IsQuitRequested);
+            Assert.Equal(SmtpReplyCode.SyntaxError, exception.Response.ReplyCode);
+        }
+
+        [Fact]
+        public async Task CanReadLineAtMaxCommandLineLength()
+        {
+            // arrange
+            var reader = CreatePipeReader("abcde\r\n");
+
+            // act
+            var line = await reader.ReadLineAsync(Encoding.ASCII, 5);
+
+            // assert
+            Assert.Equal("abcde", line);
+        }
+
+        [Fact]
         public async Task CanWriteEnhancedStatusCodeReply()
         {
             // arrange

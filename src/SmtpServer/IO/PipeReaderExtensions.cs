@@ -64,6 +64,58 @@ namespace SmtpServer.IO
         }
 
         /// <summary>
+        /// Read from the reader until the sequence is found.
+        /// </summary>
+        /// <param name="reader">The reader to read from.</param>
+        /// <param name="sequence">The sequence to find to terminate the read operation.</param>
+        /// <param name="func">The callback to execute to process the buffer.</param>
+        /// <param name="maxLength">The maximum length to read before the terminator.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The value that was read from the buffer.</returns>
+        static async ValueTask ReadUntilAsync(PipeReader reader, byte[] sequence, Func<ReadOnlySequence<byte>, Task> func, int maxLength, CancellationToken cancellationToken)
+        {
+            if (reader == null)
+            {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            var read = await reader.ReadAsync(cancellationToken);
+            var head = read.Buffer.Start;
+
+            while (read.IsCanceled == false && read.IsCompleted == false && read.Buffer.IsEmpty == false)
+            {
+                if (read.Buffer.TryFind(sequence, ref head, out var tail))
+                {
+                    var line = read.Buffer.Slice(read.Buffer.Start, head);
+                    if (line.Length > maxLength)
+                    {
+                        throw new SmtpResponseException(new SmtpResponse(SmtpReplyCode.SyntaxError, "command line length exceeds maximum command line length"), true);
+                    }
+
+                    try
+                    {
+                        await func(line);
+                    }
+                    finally
+                    {
+                        reader.AdvanceTo(tail);
+                    }
+
+                    return;
+                }
+
+                if (read.Buffer.Length > maxLength)
+                {
+                    throw new SmtpResponseException(new SmtpResponse(SmtpReplyCode.SyntaxError, "command line length exceeds maximum command line length"), true);
+                }
+
+                reader.AdvanceTo(read.Buffer.Start, read.Buffer.End);
+
+                read = await reader.ReadAsync(cancellationToken);
+            }
+        }
+
+        /// <summary>
         /// Reads a line from the reader.
         /// </summary>
         /// <param name="reader">The reader to read from.</param>
@@ -82,6 +134,24 @@ namespace SmtpServer.IO
         }
 
         /// <summary>
+        /// Reads a command line from the reader.
+        /// </summary>
+        /// <param name="reader">The reader to read from.</param>
+        /// <param name="func">The action to process the buffer.</param>
+        /// <param name="maxLineLength">The maximum line length in bytes, excluding the terminating CRLF.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that can be used to wait on the operation on complete.</returns>
+        internal static ValueTask ReadLineAsync(this PipeReader reader, Func<ReadOnlySequence<byte>, Task> func, int maxLineLength, CancellationToken cancellationToken = default)
+        {
+            if (reader == null)
+            {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return ReadUntilAsync(reader, CRLF, func, maxLineLength, cancellationToken);
+        }
+
+        /// <summary>
         /// Reads a line from the reader.
         /// </summary>
         /// <param name="reader">The reader to read from.</param>
@@ -96,6 +166,23 @@ namespace SmtpServer.IO
             }
 
             return reader.ReadLineAsync(Encoding.ASCII, maxMessageSizeOptions, cancellationToken);
+        }
+
+        /// <summary>
+        /// Reads a command line from the reader.
+        /// </summary>
+        /// <param name="reader">The reader to read from.</param>
+        /// <param name="maxLineLength">The maximum line length in bytes, excluding the terminating CRLF.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that can be used to wait on the operation on complete.</returns>
+        internal static ValueTask<string> ReadLineAsync(this PipeReader reader, int maxLineLength, CancellationToken cancellationToken = default)
+        {
+            if (reader == null)
+            {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return reader.ReadLineAsync(Encoding.ASCII, maxLineLength, cancellationToken);
         }
 
         /// <summary>
@@ -123,6 +210,36 @@ namespace SmtpServer.IO
                     return Task.CompletedTask;
                 },
                 maxMessageSizeOptions,
+                cancellationToken);
+
+            return text;
+        }
+
+        /// <summary>
+        /// Reads a command line from the reader.
+        /// </summary>
+        /// <param name="reader">The reader to read from.</param>
+        /// <param name="encoding">The encoding to use when converting the input.</param>
+        /// <param name="maxLineLength">The maximum line length in bytes, excluding the terminating CRLF.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that can be used to wait on the operation on complete.</returns>
+        internal static async ValueTask<string> ReadLineAsync(this PipeReader reader, Encoding encoding, int maxLineLength, CancellationToken cancellationToken = default)
+        {
+            if (reader == null)
+            {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            var text = string.Empty;
+
+            await reader.ReadLineAsync(
+                buffer =>
+                {
+                    text = StringUtil.Create(buffer, encoding);
+
+                    return Task.CompletedTask;
+                },
+                maxLineLength,
                 cancellationToken);
 
             return text;

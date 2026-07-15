@@ -521,6 +521,34 @@ namespace SmtpServer.Tests
         }
 
         [Fact]
+        public async Task MaxMessageSizeDoesNotLimitCommandLine()
+        {
+            using (CreateServer(c => c.MaxMessageSize(10, MaxMessageSizeHandling.Strict)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO command-line.example.com");
+
+                Assert.StartsWith("250-", response);
+            }
+        }
+
+        [Fact]
+        public async Task MaxCommandLineLengthLimitsCommandLine()
+        {
+            using (CreateServer(c => c.MaxCommandLineLength(10)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("NOOP too-long");
+
+                Assert.StartsWith("501 5.5.2 command line length exceeds maximum command line length", response);
+            }
+        }
+
+        [Fact]
         public async Task WillSessionTimeoutDuringMailDataTransmission()
         {
             var sessionTimeout = TimeSpan.FromSeconds(5);

@@ -30,6 +30,10 @@ SMTP replies include enhanced status codes for common success, syntax, authentic
 
 HELP is implemented for basic command discovery. VRFY and EXPN are accepted, but the default policy avoids mailbox or mailing list enumeration and returns conservative `252` responses. Applications that intentionally disclose verification or expansion results can register `ISmtpCommandPolicy` or `ISmtpCommandPolicyFactory`.
 
+## Configuration Limits
+
+`MaxMessageSize(length, handling)` applies to DATA and BDAT message content. `MaxCommandLineLength(length)` applies separately to SMTP command lines and AUTH continuation lines; the default is 4096 bytes, excluding the terminating CRLF.
+
 ## Installation
 
 The package is available on [NuGet](https://www.nuget.org/packages/SmtpServer)

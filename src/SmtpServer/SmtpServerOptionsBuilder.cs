@@ -8,6 +8,11 @@ namespace SmtpServer
     /// </summary>
     public sealed class SmtpServerOptionsBuilder
     {
+        /// <summary>
+        /// The default maximum SMTP command line length in bytes, excluding the terminating CRLF.
+        /// </summary>
+        public const int DefaultMaxCommandLineLength = 4096;
+
         readonly List<Action<SmtpServerOptions>> _setters = new List<Action<SmtpServerOptions>>();
 
         /// <summary>
@@ -19,6 +24,7 @@ namespace SmtpServer
             var serverOptions = new SmtpServerOptions
             {
                 MaxMessageSizeOptions = new MaxMessageSizeOptions(),
+                MaxCommandLineLength = DefaultMaxCommandLineLength,
                 Endpoints = new List<IEndpointDefinition>(),
                 MaxRetryCount = 5,
                 MaxAuthenticationAttempts = 3,
@@ -111,6 +117,23 @@ namespace SmtpServer
         }
 
         /// <summary>
+        /// Sets the maximum SMTP command line length in bytes, excluding the terminating CRLF.
+        /// </summary>
+        /// <param name="length">The maximum command line length to allow in bytes.</param>
+        /// <returns>An OptionsBuilder to continue building on.</returns>
+        public SmtpServerOptionsBuilder MaxCommandLineLength(int length)
+        {
+            if (length <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), "The maximum command line length must be greater than zero.");
+            }
+
+            _setters.Add(options => options.MaxCommandLineLength = length);
+
+            return this;
+        }
+
+        /// <summary>
         /// Sets the maximum number of retries for a failed command.
         /// </summary>
         /// <param name="value">The maximum number of retries allowed for a failed command.</param>
@@ -188,6 +211,11 @@ namespace SmtpServer
             /// Gets or sets the maximum message size option.
             /// </summary>
             public IMaxMessageSizeOptions MaxMessageSizeOptions { get; set; }
+
+            /// <summary>
+            /// Gets or sets the maximum SMTP command line length in bytes, excluding the terminating CRLF.
+            /// </summary>
+            public int MaxCommandLineLength { get; set; }
 
             /// <summary>
             /// The maximum number of retries before quitting the session.
