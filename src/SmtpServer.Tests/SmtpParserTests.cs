@@ -102,6 +102,7 @@ namespace SmtpServer.Tests
         [InlineData("EHLO abc-1-def.mail.com", "abc-1-def.mail.com")]
         [InlineData("EHLO 192.168.1.200", "192.168.1.200")]
         [InlineData("EHLO [192.168.1.200]", "192.168.1.200")]
+        [InlineData("EHLO dæmi.is", "dæmi.is")]
         [InlineData("EHLO [IPv6:ABCD:EF01:2345:6789:ABCD:EF01:2345:6789]", "IPv6:ABCD:EF01:2345:6789:ABCD:EF01:2345:6789")]
         public void CanMakeEhlo(string input, string domainOrAddress)
         {
@@ -153,6 +154,7 @@ namespace SmtpServer.Tests
         [InlineData("MAIL FROM:<cain.osullivan@gmail.com>", "cain.osullivan", "gmail.com")]
         [InlineData(@"MAIL FROM:<""Abc@def""@example.com>", "Abc@def", "example.com")]
         [InlineData("MAIL FROM:<pelé@example.com> SMTPUTF8", "pelé", "example.com", "SMTPUTF8")]
+        [InlineData("MAIL FROM:<þorsteinn@dæmi.is> SMTPUTF8", "þorsteinn", "dæmi.is", "SMTPUTF8")]
         public void CanMakeMail(string input, string user, string host, string extension = null)
         {
             // arrange
@@ -226,6 +228,7 @@ namespace SmtpServer.Tests
         [InlineData("RCPT TO:<cain.osullivan@gmail.com>", "cain.osullivan", "gmail.com")]
         [InlineData(@"RCPT TO:<""Abc@def""@example.com>", "Abc@def", "example.com")]
         [InlineData("RCPT TO:<pelé@example.com>", "pelé", "example.com")]
+        [InlineData("RCPT TO:<þorsteinn@dæmi.is>", "þorsteinn", "dæmi.is")]
         [InlineData("RCPT TO:<@example1.com:someone@example.com>", "someone", "example.com")]
         [InlineData("RCPT TO:<@example1.com,@example2.com:someone@example.com>", "someone", "example.com")]
         [InlineData("RCPT TO:<example/example@example.com>", "example/example", "example.com")]

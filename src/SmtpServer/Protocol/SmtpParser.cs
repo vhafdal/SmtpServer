@@ -89,7 +89,7 @@ namespace SmtpServer.Protocol
 
             if (reader.TryMake(TryMakeDomain, out var domain))
             {
-                command = _smtpCommandFactory.CreateHelo(StringUtil.Create(domain));
+                command = _smtpCommandFactory.CreateHelo(StringUtil.Create(domain, Encoding.UTF8));
                 return true;
             }
 
@@ -148,7 +148,7 @@ namespace SmtpServer.Protocol
 
             if (reader.TryMake(TryMakeDomain, out var domain))
             {
-                command = _smtpCommandFactory.CreateEhlo(StringUtil.Create(domain));
+                command = _smtpCommandFactory.CreateEhlo(StringUtil.Create(domain, Encoding.UTF8));
                 return true;
             }
 
@@ -1130,7 +1130,7 @@ namespace SmtpServer.Protocol
                     return null;
                 }
 
-                var tempDomain = StringUtil.Create(domainOrAddress);
+                var tempDomain = StringUtil.Create(domainOrAddress, Encoding.UTF8);
                 if (tempDomain == null)
                 {
                     return null;
