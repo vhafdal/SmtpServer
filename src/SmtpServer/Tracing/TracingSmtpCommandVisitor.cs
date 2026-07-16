@@ -33,7 +33,7 @@ namespace SmtpServer.Tracing
         /// <param name="command">The command that is being visited.</param>
         protected override void Visit(AuthCommand command)
         {
-            _output.WriteLine("AUTH: Method={0}, Parameter={1}", command.Method, command.Parameter);
+            _output.WriteLine("AUTH: Method={0}, Parameter={1}", command.Method, SmtpCommandSnapshot.Redacted);
         }
 
         /// <summary>

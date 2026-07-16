@@ -92,6 +92,32 @@ var smtpServer = new SmtpServer.SmtpServer(options, ServiceProvider.Default);
 await smtpServer.StartAsync(CancellationToken.None);
 ```
 
+### Logging with Generic Host
+
+When the server is created with an `IServiceProvider` that contains `ILoggerFactory`, SMTP lifecycle and protocol diagnostics are written through `Microsoft.Extensions.Logging`.
+
+```cs
+Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
+    {
+        services.AddTransient<IMessageStore, SampleMessageStore>();
+
+        services.AddSingleton(provider =>
+        {
+            var options = new SmtpServerOptionsBuilder()
+                .ServerName("SMTP Server")
+                .Port(9025)
+                .Build();
+
+            return new SmtpServer.SmtpServer(options, provider);
+        });
+
+        services.AddHostedService<Worker>();
+    });
+```
+
+Session lifecycle is logged at `Information`, safe command snapshots at `Debug`, expected SMTP response exceptions at `Warning`, and listener/session faults at `Error`. Session logs include a `BeginScope` with `SessionId`, endpoint details, TLS state, and authentication state. AUTH material and message bodies are not logged by default.
+
 ### What hooks are provided?
 
 There are four hooks that can be implemented: `IMessageStore`, `IMailboxFilter`, `IUserAuthenticator`, and `ISmtpCommandPolicy`.
