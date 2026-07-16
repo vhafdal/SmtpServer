@@ -2,6 +2,7 @@
 using SmtpServer.Protocol;
 using SmtpServer.Storage;
 using System;
+using Microsoft.Extensions.Logging;
 using SmtpServer.Net;
 
 namespace SmtpServer.ComponentModel
@@ -22,6 +23,7 @@ namespace SmtpServer.ComponentModel
         ISmtpCommandPolicyFactory _smtpCommandPolicyFactory;
         IMailboxFilterFactory _mailboxFilterFactory;
         IMessageStoreFactory _messageStoreFactory;
+        ILoggerFactory _loggerFactory;
 
         /// <summary>
         /// Service Provider
@@ -125,6 +127,15 @@ namespace SmtpServer.ComponentModel
         }
 
         /// <summary>
+        /// Add an instance of the logger factory.
+        /// </summary>
+        /// <param name="loggerFactory">The logger factory.</param>
+        public void Add(ILoggerFactory loggerFactory)
+        {
+            _loggerFactory = loggerFactory;
+        }
+
+        /// <summary>
         /// Gets the service object of the specified type.
         /// </summary>
         /// <param name="serviceType">An object that specifies the type of service object to get.</param>
@@ -159,6 +170,11 @@ namespace SmtpServer.ComponentModel
             if (serviceType == typeof(IMessageStoreFactory))
             {
                 return _messageStoreFactory;
+            }
+
+            if (serviceType == typeof(ILoggerFactory))
+            {
+                return _loggerFactory;
             }
 
             throw new NotSupportedException(serviceType.ToString());

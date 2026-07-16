@@ -1,5 +1,6 @@
 ﻿using MailKit;
 using MailKit.Net.Smtp;
+using Microsoft.Extensions.Logging;
 using SmtpServer.Authentication;
 using SmtpServer.ComponentModel;
 using SmtpServer.Mail;
@@ -7,6 +8,7 @@ using SmtpServer.Net;
 using SmtpServer.Protocol;
 using SmtpServer.Storage;
 using SmtpServer.Tests.Mocks;
+using SmtpServer.Tracing;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -355,6 +357,141 @@ namespace SmtpServer.Tests
             Assert.Equal("AUTH", safeCommand.Name);
             Assert.Equal("Plain <redacted>", safeCommand.Argument);
             Assert.Equal("AUTH Plain <redacted>", safeCommand.ToString());
+        }
+
+        [Fact]
+        public async Task LoggerCapturesSessionLifecycleAndCommandsWithSessionScope()
+        {
+            var loggerFactory = new TestLoggerFactory();
+
+            using (CreateServer(services => services.Add(loggerFactory)))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.StartsWith("250-", response);
+
+                response = await rawSmtpClient.SendCommandAsync("QUIT");
+                Assert.StartsWith("221", response);
+
+                await WaitForLogAsync(loggerFactory, entry => entry.Message.StartsWith("SMTP session completed."));
+            }
+
+            Assert.Contains(loggerFactory.Entries, entry => entry.CategoryName == "SmtpServer.SmtpServer" && entry.Message.StartsWith("SMTP server starting"));
+            Assert.Contains(loggerFactory.Entries, entry => entry.CategoryName == "SmtpServer.SmtpSessionManager" && entry.Message.StartsWith("SMTP session created"));
+
+            var commandEntry = loggerFactory.Entries.First(entry =>
+                entry.CategoryName == "SmtpServer.SmtpSession" &&
+                entry.LogLevel == LogLevel.Debug &&
+                entry.Message.StartsWith("SMTP command executing") &&
+                entry.TryGetStateValue("CommandName", out var commandName) &&
+                (string)commandName == "EHLO");
+
+            Assert.True(commandEntry.TryGetScopeValue("SessionId", out var sessionId));
+            Assert.IsType<Guid>(sessionId);
+            Assert.True(commandEntry.TryGetScopeValue("RemoteEndPoint", out var remoteEndPoint));
+            Assert.NotNull(remoteEndPoint);
+            Assert.True(commandEntry.TryGetScopeValue("EndpointPort", out var endpointPort));
+            Assert.Equal(9025, endpointPort);
+        }
+
+        [Fact]
+        public async Task LoggerRedactsAuthCommandArguments()
+        {
+            const string RawAuthParameter = "AHVzZXIAcGFzc3dvcmQ=";
+            var loggerFactory = new TestLoggerFactory();
+            var userAuthenticator = new DelegatingUserAuthenticator((user, password) => true);
+
+            using (CreateServer(endpoint => endpoint.AllowUnsecureAuthentication(), services =>
+                   {
+                       services.Add(loggerFactory);
+                       services.Add(userAuthenticator);
+                   }))
+            using (var rawSmtpClient = new RawSmtpClient("127.0.0.1", 9025))
+            {
+                Assert.True(await rawSmtpClient.ConnectAsync());
+
+                var response = await rawSmtpClient.SendCommandAsync("EHLO example.com");
+                Assert.StartsWith("250-", response);
+
+                response = await rawSmtpClient.SendCommandAsync($"AUTH PLAIN {RawAuthParameter}");
+                Assert.StartsWith("235 2.7.0", response);
+
+                await WaitForLogAsync(loggerFactory, entry =>
+                    entry.TryGetStateValue("CommandName", out var commandName) &&
+                    (string)commandName == "AUTH");
+            }
+
+            var authEntries = loggerFactory.Entries.Where(entry =>
+                entry.TryGetStateValue("CommandName", out var commandName) &&
+                (string)commandName == "AUTH").ToList();
+
+            Assert.NotEmpty(authEntries);
+            Assert.All(authEntries, entry =>
+            {
+                Assert.True(entry.TryGetStateValue("CommandArgument", out var commandArgument));
+                Assert.Equal("Plain <redacted>", commandArgument);
+                Assert.DoesNotContain(RawAuthParameter, entry.Message);
+            });
+
+            Assert.Contains(authEntries, entry =>
+                entry.Message.StartsWith("SMTP command executed") &&
+                entry.TryGetScopeValue("IsAuthenticated", out var isAuthenticated) &&
+                (bool)isAuthenticated);
+            Assert.DoesNotContain(loggerFactory.Entries, entry => entry.Message.Contains(RawAuthParameter));
+        }
+
+        [Fact]
+        public async Task LoggerCapturesResponseExceptionsAndKeepsEvents()
+        {
+            var loggerFactory = new TestLoggerFactory();
+            var responseExceptionEvents = 0;
+            var mailboxFilter = new DelegatingMailboxFilter(@from => throw new SmtpResponseException(SmtpResponse.AuthenticationRequired));
+
+            using (var disposable = CreateServer(services =>
+                   {
+                       services.Add(loggerFactory);
+                       services.Add(mailboxFilter);
+                   }))
+            {
+                EventHandler<SessionEventArgs> sessionCreatedHandler = delegate (object sender, SessionEventArgs args)
+                {
+                    args.Context.ResponseException += (_, __) => responseExceptionEvents++;
+                };
+
+                disposable.Server.SessionCreated += sessionCreatedHandler;
+
+                using var client = MailClient.Client();
+
+                Assert.Throws<ServiceNotAuthenticatedException>(() => client.Send(MailClient.Message()));
+                client.NoOp();
+
+                await WaitForLogAsync(loggerFactory, entry => entry.Message.StartsWith("SMTP response exception"));
+
+                disposable.Server.SessionCreated -= sessionCreatedHandler;
+            }
+
+            Assert.True(responseExceptionEvents > 0);
+
+            var warningEntry = loggerFactory.Entries.First(entry => entry.Message.StartsWith("SMTP response exception"));
+            Assert.Equal(LogLevel.Warning, warningEntry.LogLevel);
+            Assert.True(warningEntry.TryGetScopeValue("SessionId", out var sessionId));
+            Assert.IsType<Guid>(sessionId);
+            Assert.True(warningEntry.TryGetStateValue("ReplyCode", out var replyCode));
+            Assert.Equal(SmtpReplyCode.AuthenticationRequired, replyCode);
+        }
+
+        [Fact]
+        public void TracingSmtpCommandVisitorRedactsAuthParameter()
+        {
+            using var writer = new StringWriter();
+
+            new TracingSmtpCommandVisitor(writer).Visit(new AuthCommand(AuthenticationMethod.Plain, "AHVzZXIAcGFzc3dvcmQ="));
+
+            var output = writer.ToString();
+            Assert.Contains("<redacted>", output);
+            Assert.DoesNotContain("AHVzZXIAcGFzc3dvcmQ=", output);
         }
 
         [Fact]
@@ -1227,6 +1364,23 @@ namespace SmtpServer.Tests
                     e.Handle(exception => exception is OperationCanceledException);
                 }
             });
+        }
+
+        static async Task WaitForLogAsync(TestLoggerFactory loggerFactory, Func<TestLogEntry, bool> predicate)
+        {
+            var stopwatch = Stopwatch.StartNew();
+
+            while (stopwatch.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                if (loggerFactory.Entries.Any(predicate))
+                {
+                    return;
+                }
+
+                await Task.Delay(20);
+            }
+
+            Assert.Fail("The expected log entry was not captured.");
         }
 
         /// <summary>
