@@ -13,6 +13,7 @@
             SmtpUtf8Enabled = true;
             DsnEnabled = true;
             ChunkingEnabled = true;
+            OAuthEnabled = false;
         }
 
         /// <summary>
@@ -49,9 +50,28 @@
         }
 
         /// <summary>
+        /// Enables or disables advertisement of the XOAUTH2 and OAUTHBEARER bearer-token SASL mechanisms.
+        /// Off by default: a host should only advertise them once it has wired a bearer-token authenticator,
+        /// otherwise clients would negotiate a mechanism the host cannot honour. The mechanisms are always
+        /// parsed and processed when a client sends them; this flag only controls EHLO discovery.
+        /// </summary>
+        /// <param name="enabled">A value indicating whether the OAuth bearer-token mechanisms are advertised.</param>
+        /// <returns>The current options instance.</returns>
+        public SmtpServerExtensionOptions OAuth(bool enabled)
+        {
+            OAuthEnabled = enabled;
+            return this;
+        }
+
+        /// <summary>
         /// Gets a value indicating whether SMTPUTF8 is enabled.
         /// </summary>
         public bool SmtpUtf8Enabled { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the XOAUTH2 and OAUTHBEARER bearer-token mechanisms are advertised.
+        /// </summary>
+        public bool OAuthEnabled { get; private set; }
 
         /// <summary>
         /// Gets a value indicating whether DSN is enabled.

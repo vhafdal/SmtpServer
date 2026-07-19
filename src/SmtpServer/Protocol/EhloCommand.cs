@@ -114,7 +114,16 @@ namespace SmtpServer.Protocol
 
             if (IsPlainLoginAllowed(context))
             {
-                yield return "AUTH PLAIN LOGIN";
+                var mechanisms = "AUTH PLAIN LOGIN";
+
+                // Advertise the bearer-token mechanisms only when the host opts in (it has wired an
+                // authenticator that can validate a token), so a client never negotiates one we cannot honour.
+                if (context.ServerOptions.Extensions.OAuthEnabled)
+                {
+                    mechanisms += " XOAUTH2 OAUTHBEARER";
+                }
+
+                yield return mechanisms;
             }
 
             static bool IsPlainLoginAllowed(ISessionContext context)

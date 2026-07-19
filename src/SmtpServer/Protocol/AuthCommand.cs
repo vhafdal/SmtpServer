@@ -61,6 +61,22 @@ namespace SmtpServer.Protocol
                         return false;
                     }
                     break;
+
+                case AuthenticationMethod.XOAuth2:
+                    if (await TryOAuthAsync(context, xOAuth2: true, cancellationToken).ConfigureAwait(false) == false)
+                    {
+                        await context.Pipe.Output.WriteReplyAsync(SmtpResponse.AuthenticationFailed, cancellationToken).ConfigureAwait(false);
+                        return false;
+                    }
+                    break;
+
+                case AuthenticationMethod.OAuthBearer:
+                    if (await TryOAuthAsync(context, xOAuth2: false, cancellationToken).ConfigureAwait(false) == false)
+                    {
+                        await context.Pipe.Output.WriteReplyAsync(SmtpResponse.AuthenticationFailed, cancellationToken).ConfigureAwait(false);
+                        return false;
+                    }
+                    break;
             }
 
             var userAuthenticator = context.ServiceProvider.GetService<IUserAuthenticatorFactory, IUserAuthenticator>(context, UserAuthenticator.Default);
@@ -194,6 +210,31 @@ namespace SmtpServer.Protocol
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Attempt an XOAUTH2 or OAUTHBEARER bearer-token exchange. The decoded bearer token is surfaced to
+        /// the authenticator as the password and the SASL identity as the user, so a host validates the token
+        /// exactly as it validates any other credential — no live identity-provider call happens here.
+        /// </summary>
+        /// <param name="context">The execution context to operate on.</param>
+        /// <param name="xOAuth2">true to decode the XOAUTH2 blob, false to decode the OAUTHBEARER blob.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>true if a user and bearer token were decoded, false if not.</returns>
+        async Task<bool> TryOAuthAsync(ISessionContext context, bool xOAuth2, CancellationToken cancellationToken)
+        {
+            var response = Parameter;
+
+            if (string.IsNullOrWhiteSpace(response))
+            {
+                await context.Pipe.Output.WriteReplyAsync(new SmtpResponse(SmtpReplyCode.ContinueWithAuth, " "), cancellationToken).ConfigureAwait(false);
+
+                response = await context.Pipe.Input.ReadLineAsync(Encoding.ASCII, context.ServerOptions.MaxCommandLineLength, cancellationToken).ConfigureAwait(false);
+            }
+
+            return xOAuth2
+                ? OAuthSaslDecoder.TryDecodeXOAuth2(response, out _user, out _password)
+                : OAuthSaslDecoder.TryDecodeOAuthBearer(response, out _user, out _password);
         }
 
         /// <summary>

@@ -431,6 +431,54 @@ namespace SmtpServer.Tests
             Assert.Equal("Y2Fpbi5vc3VsbGl2YW5AZ21haWwuY29t", ((AuthCommand)command).Parameter);
         }
 
+        [Fact]
+        public void CanMakeAuthXOAuth2()
+        {
+            // arrange — the "2" tokenizes separately from "XOAUTH", so this proves both tokens are consumed
+            var reader = CreateReader("AUTH XOAUTH2 dXNlcj1hbGljZQ==");
+
+            // act
+            var result = Parser.TryMakeAuth(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is AuthCommand);
+            Assert.Equal(AuthenticationMethod.XOAuth2, ((AuthCommand)command).Method);
+            Assert.Equal("dXNlcj1hbGljZQ==", ((AuthCommand)command).Parameter);
+        }
+
+        [Fact]
+        public void CanMakeAuthXOAuth2WithoutInitialResponse()
+        {
+            // arrange
+            var reader = CreateReader("AUTH XOAUTH2");
+
+            // act
+            var result = Parser.TryMakeAuth(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is AuthCommand);
+            Assert.Equal(AuthenticationMethod.XOAuth2, ((AuthCommand)command).Method);
+            Assert.Null(((AuthCommand)command).Parameter);
+        }
+
+        [Fact]
+        public void CanMakeAuthOAuthBearer()
+        {
+            // arrange
+            var reader = CreateReader("AUTH OAUTHBEARER dXNlcj1hbGljZQ==");
+
+            // act
+            var result = Parser.TryMakeAuth(ref reader, out var command, out var errorResponse);
+
+            // assert
+            Assert.True(result);
+            Assert.True(command is AuthCommand);
+            Assert.Equal(AuthenticationMethod.OAuthBearer, ((AuthCommand)command).Method);
+            Assert.Equal("dXNlcj1hbGljZQ==", ((AuthCommand)command).Parameter);
+        }
+
         [Theory]
         [InlineData("MAIL FROM:<cain.osullivan@gmail.com>", "cain.osullivan", "gmail.com")]
         [InlineData(@"MAIL FROM:<""Abc@def""@example.com>", "Abc@def", "example.com")]
