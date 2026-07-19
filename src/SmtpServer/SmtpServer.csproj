@@ -6,7 +6,7 @@
     <AssemblyName>SmtpServer</AssemblyName>
     <RootNamespace>SmtpServer</RootNamespace>
     <PackageId>DevOp.SMTPServer</PackageId>
-    <Version>11.3.0</Version>
+    <MinVerTagPrefix>smtp-server-v</MinVerTagPrefix>
     <Description>High-performance, flexible SMTP server implementation for .NET with support for ESMTP, TLS, authentication, and custom message handling.</Description>
     <Authors>Cain O'Sullivan</Authors>
     <Copyright>2015-2023</Copyright>
@@ -38,6 +38,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
     <PackageReference Include="System.IO.Pipelines" Version="8.0.0" />
+    <PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>
